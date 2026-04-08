@@ -1,0 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --primary: #003d79; --accent: #fbbf24; --bg: #f1f5f9; --border: #d1d5db;
+}
+
+* { box-sizing: border-box; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; padding-top: 85px; }
+
+/* HEADER */
+.main-header {
+    background: var(--primary); color: white; padding: 10px 2rem;
+    position: fixed; top: 0; width: 100%; z-index: 1000;
+}
+.header-container { display: flex; justify-content: space-between; align-items: center; max-width: 1800px; margin: 0 auto; }
+.controles { display: flex; gap: 15px; }
+
+/* LAYOUT */
+.app-layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; padding: 20px; }
+.sidebar { background: white; padding: 20px; border-radius: 12px; height: calc(100vh - 130px); overflow-y: auto; border: 1px solid var(--border); }
+
+/* CARDS NA GRADE */
+.aula-box {
+    background: white; padding: 8px; border-radius: 6px; position: relative;
+    display: flex; flex-direction: column; font-size: 0.7rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #ccc;
+    margin-bottom: 5px;
+}
+
+/* ETIQUETA DA TURMA */
+.turma-tag {
+    position: absolute; bottom: 5px; right: 5px;
+    background: #f1f5f9; color: var(--primary);
+    padding: 1px 4px; border-radius: 3px;
+    font-size: 0.6rem; font-weight: 800; border: 1px solid var(--border);
+}
+
+.tipo-badge {
+    position: absolute; top: 5px; right: 25px;
+    background: #334155; color: white; width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; font-size: 0.6rem; cursor: pointer;
+}
+
+/* CORES SEMESTRES */
+.semestre-1 { border-left-color: #ef4444; } .semestre-2 { border-left-color: #f97316; }
+.semestre-3 { border-left-color: #eab308; } .semestre-4 { border-left-color: #22c55e; }
+.semestre-5 { border-left-color: #06b6d4; } .semestre-6 { border-left-color: #3b82f6; }
+.semestre-7 { border-left-color: #6366f1; } .semestre-8 { border-left-color: #a855f7; }
+.semestre-9 { border-left-color: #ec4899; } .semestre-10 { border-left-color: #475569; }
+
+/* TABELA */
+.horario-table { width: 100%; border-collapse: collapse; table-layout: fixed; background: white; }
+.horario-table th, .horario-table td { border: 1px solid var(--border); padding: 5px; min-height: 150px; vertical-align: top; }
+.horario-table th { background: #f8fafc; color: var(--primary); height: 40px; }
+.hora-label { width: 100px; text-align: center; vertical-align: middle !important; background: #f8fafc; }
+
+.btn-adicionar-vaga {
+    width: 100%; margin-top: 5px; border: 1px dashed var(--primary);
+    background: #f0f7ff; color: var(--primary); cursor: pointer; border-radius: 4px;
+}
+
+/* ---------------------------------------------------
+   CONFIGURAÇÃO DE PDF (HORIZONTAL / LANDSCAPE)
+------------------------------------------------------ */
+@media print {
+    @page { size: landscape; margin: 1cm; }
+    header, .sidebar, .btn-del, .btn-adicionar-vaga { display: none !important; }
+    body { padding-top: 0; background: white; }
+    .app-layout { display: block; }
+    .horario-table { width: 100%; border: 1px solid #000; }
+    .horario-table th, .horario-table td { border: 1px solid #000; font-size: 8pt; }
+    .aula-box { border: 1px solid #ccc !important; break-inside: avoid; box-shadow: none; }
+}
