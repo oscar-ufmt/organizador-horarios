@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UFMT | Gestor de Horários e Turmas</title>
+    <title>UFMT | Gestão de Oferta Acadêmica</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -18,52 +18,55 @@
         <div class="controles">
             <div class="select-group">
                 <label>PPC:</label>
-                <select id="filtroPPC" onchange="carregarDisciplinas()">
+                <select id="filtroPPC" onchange="salvarEAtualizar()">
                     <option value="20251">2025/1</option>
                     <option value="20261" selected>2026/1</option>
                 </select>
             </div>
             <div class="select-group">
                 <label>Semestre:</label>
-                <select id="filtroSemestre" onchange="carregarDisciplinas()"></select>
+                <select id="filtroSemestre" onchange="salvarEAtualizar()"></select>
             </div>
             <button onclick="window.print()" class="btn-outline">📄 Gerar PDF</button>
-            <button onclick="limparGrade()" class="btn-danger-outline">Resetar Tudo</button>
+            <button onclick="limparGrade()" class="btn-danger-outline">Resetar Grade</button>
         </div>
     </div>
 </header>
 
 <main class="app-layout">
+    <!-- BARRA LATERAL -->
     <aside class="sidebar">
         <h3>Disciplinas do Semestre</h3>
         <div id="listaDisciplinas" class="lista-disciplinas"></div>
 
         <div id="formConfig" class="card form-detalhes" style="display:none;">
-            <h4>Configurar Oferta</h4>
+            <h4>Configurar Alocação</h4>
             <p id="nomeDiscSelecionada" class="highlight-text"></p>
+            <p id="cargaHorariaInfo" class="ch-label-info"></p>
 
             <div class="meta-container">
                 <div class="field">
-                    <label>Qtd. Teóricas:</label>
-                    <input type="number" id="metaT" value="1" min="1" onchange="atualizarStatusCarga()">
+                    <label>Aulas Teóricas:</label>
+                    <input type="number" id="metaT" value="1" min="0" onchange="atualizarStatusCarga()">
                 </div>
                 <div class="field">
-                    <label>Qtd. Práticas:</label>
+                    <label>Aulas Práticas:</label>
                     <input type="number" id="metaP" value="0" min="0" onchange="atualizarStatusCarga()">
                 </div>
             </div>
 
-            <div class="status-resumo">
-                <div class="status-item">Teoria Alocada: <span id="countT">0/0</span></div>
-                <div class="status-item">Prática Alocada: <span id="countP">0/0</span></div>
-            </div>
+            <!-- ALERTAS DINÂMICOS -->
+            <div id="alertaHorario"></div>
 
-            <hr>
+            <div class="status-resumo">
+                <div class="status-item">Teoria: <span id="countT">0/0</span></div>
+                <div class="status-item">Prática: <span id="countP">0/0</span></div>
+            </div>
 
             <div class="input-row">
                 <div class="field">
                     <label>Turma (Etiqueta):</label>
-                    <input type="text" id="turmaId" placeholder="Ex: A, B, VE1" value="A">
+                    <input type="text" id="turmaId" placeholder="Ex: A, B, VE1" value="A" oninput="atualizarStatusCarga()">
                 </div>
                 <div class="field">
                     <label>Professor:</label>
@@ -85,12 +88,13 @@
                     <input type="text" id="salaAula" placeholder="Ex: Lab 02">
                 </div>
             </div>
-            <p class="instrucao">Ajuste os dados acima e clique no <b>+</b> do horário desejado.</p>
+            <p class="instrucao">Ajuste os dados e clique no <b>+</b> da grade.</p>
         </div>
     </aside>
 
+    <!-- GRADE DE HORÁRIOS -->
     <section class="grid-container">
-        <table class="horario-table" id="tabelaHorarios">
+        <table class="horario-table">
             <thead>
             <tr>
                 <th>Horário</th>
