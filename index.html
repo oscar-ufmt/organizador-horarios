@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UFMT | Gestão de Horários e Turmas</title>
+    <title>UFMT | Gestor de Horários e Turmas</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -27,55 +27,65 @@
                 <label>Semestre:</label>
                 <select id="filtroSemestre" onchange="carregarDisciplinas()"></select>
             </div>
-            <button onclick="window.print()" class="btn-outline">📄 Gerar PDF (L)</button>
-            <button onclick="limparGrade()" class="btn-danger-outline">Limpar Grade</button>
+            <button onclick="window.print()" class="btn-outline">📄 Gerar PDF</button>
+            <button onclick="limparGrade()" class="btn-danger-outline">Resetar Tudo</button>
         </div>
     </div>
 </header>
 
 <main class="app-layout">
     <aside class="sidebar">
-        <h3>Disciplinas Disponíveis</h3>
+        <h3>Disciplinas do Semestre</h3>
         <div id="listaDisciplinas" class="lista-disciplinas"></div>
 
         <div id="formConfig" class="card form-detalhes" style="display:none;">
-            <h4>Configurar Alocação</h4>
+            <h4>Configurar Oferta</h4>
             <p id="nomeDiscSelecionada" class="highlight-text"></p>
 
-            <div class="input-row">
+            <div class="meta-container">
                 <div class="field">
-                    <label>Identificação da Turma:</label>
-                    <input type="text" id="turmaId" placeholder="Ex: A, B, T1 ou VE1" oninput="atualizarStatusCarga()">
+                    <label>Qtd. Teóricas:</label>
+                    <input type="number" id="metaT" value="1" min="1" onchange="atualizarStatusCarga()">
+                </div>
+                <div class="field">
+                    <label>Qtd. Práticas:</label>
+                    <input type="number" id="metaP" value="0" min="0" onchange="atualizarStatusCarga()">
                 </div>
             </div>
 
+            <div class="status-resumo">
+                <div class="status-item">Teoria Alocada: <span id="countT">0/0</span></div>
+                <div class="status-item">Prática Alocada: <span id="countP">0/0</span></div>
+            </div>
+
+            <hr>
+
             <div class="input-row">
+                <div class="field">
+                    <label>Turma (Etiqueta):</label>
+                    <input type="text" id="turmaId" placeholder="Ex: A, B, VE1" value="A">
+                </div>
                 <div class="field">
                     <label>Professor:</label>
                     <input type="text" id="profNome" placeholder="Nome do docente">
                 </div>
             </div>
 
-            <div class="input-row grid-2">
+            <div class="input-row">
                 <div class="field">
-                    <label>Sala/Local:</label>
-                    <input type="text" id="salaAula" placeholder="Ex: Lab 01">
-                </div>
-                <div class="field">
-                    <label>Tipo:</label>
+                    <label>Tipo de Aula:</label>
                     <select id="tipoAula">
                         <option value="Teórica">Teórica</option>
                         <option value="Prática">Prática</option>
                         <option value="Laboratório">Laboratório</option>
                     </select>
                 </div>
+                <div class="field">
+                    <label>Sala/Local:</label>
+                    <input type="text" id="salaAula" placeholder="Ex: Lab 02">
+                </div>
             </div>
-
-            <div class="status-box">
-                <div class="ch-info">Carga Disciplina: <span id="chTotal">0</span>h</div>
-                <div class="ch-info">Restante (Nesta Turma): <span id="chRestante" class="danger-text">0</span>h</div>
-            </div>
-            <p class="instrucao">Selecione a turma e clique no <b>+</b> da grade.</p>
+            <p class="instrucao">Ajuste os dados acima e clique no <b>+</b> do horário desejado.</p>
         </div>
     </aside>
 

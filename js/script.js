@@ -22,7 +22,7 @@ async function carregarDados() {
         }
         renderizarGrade();
         carregarDisciplinas();
-    } catch (e) { alert("Erro ao carregar dados."); }
+    } catch (e) { alert("Erro ao carregar banco de dados."); }
 }
 
 function carregarDisciplinas() {
@@ -30,11 +30,10 @@ function carregarDisciplinas() {
     const semestre = document.getElementById('filtroSemestre').value;
     const container = document.getElementById('listaDisciplinas');
     container.innerHTML = '';
-    const filtradas = disciplinas.filter(d => d[`ppc_${ppc}`] == semestre);
-    filtradas.forEach(d => {
+    disciplinas.filter(d => d[`ppc_${ppc}`] == semestre).forEach(d => {
         const div = document.createElement('div');
         div.className = `card-disc-item ${discSelecionada?.codigo === d.codigo ? 'active' : ''}`;
-        div.innerHTML = `<div class="disc-info"><strong>${d.codigo}</strong><span>${d.nome}</span></div><span class="badge-ch">${d.carga_horaria}</span>`;
+        div.innerHTML = `<div class="disc-info"><strong>${d.codigo}</strong><span>${d.nome}</span></div>`;
         div.onclick = () => selecionarDisciplina(d);
         container.appendChild(div);
     });
@@ -44,26 +43,85 @@ function selecionarDisciplina(d) {
     discSelecionada = d;
     document.getElementById('formConfig').style.display = 'block';
     document.getElementById('nomeDiscSelecionada').innerText = d.nome;
+
+    // Sugestão inicial baseada na carga horária
+    const totalEncontros = parseInt(d.carga_horaria) / 32;
+    document.getElementById('metaT').value = 1;
+    document.getElementById('metaP').value = Math.max(0, totalEncontros - 1);
+
     atualizarStatusCarga();
     carregarDisciplinas();
 }
 
 function atualizarStatusCarga() {
     if (!discSelecionada) return;
-    const turmaAtual = document.getElementById('turmaId').value.trim().toUpperCase();
-    const chTotal = parseInt(discSelecionada.carga_horaria);
+    const metaT = parseInt(document.getElementById('metaT').value) || 0;
+    const metaP = parseInt(document.getElementById('metaP').value) || 0;
 
-    // Filtra horas alocadas especificamente para ESTA disciplina nesta Turma
-    let slotsTurma = 0;
-    Object.values(grade).flat().forEach(aula => {
-        if (aula.codigo === discSelecionada.codigo && aula.turma === turmaAtual) {
-            slotsTurma++;
-        }
+    // CONTAGEM GLOBAL: Ignora a etiqueta da turma, foca no código da disciplina
+    const aulasGlobal = Object.values(grade).flat().filter(a => a.codigo === discSelecionada.codigo);
+
+    const atualT = aulasGlobal.filter(a => a.tipo === 'Teórica').length;
+    const atualP = aulasGlobal.filter(a => a.tipo !== 'Teórica').length;
+
+    document.getElementById('countT').innerText = `${atualT}/${metaT}`;
+    document.getElementById('countP').innerText = `${atualP}/${metaP}`;
+
+    document.getElementById('countT').style.color = atualT >= metaT ? 'var(--success)' : '#ef4444';
+    document.getElementById('countP').style.color = atualP >= metaP ? 'var(--success)' : '#ef4444';
+}
+
+function alocarNaGrade(dia, horaId) {
+    if (!discSelecionada) return alert("Selecione uma disciplina primeiro.");
+
+    const tipo = document.getElementById('tipoAula').value;
+    const turma = document.getElementById('turmaId').value.trim().toUpperCase() || "A";
+    const prof = document.getElementById('profNome').value || "A definir";
+    const semestre = document.getElementById('filtroSemestre').value;
+    const ppc = document.getElementById('filtroPPC').value;
+
+    const metaT = parseInt(document.getElementById('metaT').value) || 0;
+    const metaP = parseInt(document.getElementById('metaP').value) || 0;
+
+    // 1. VALIDAÇÃO DE LIMITE GLOBAL DA DISCIPLINA
+    const aulasGlobal = Object.values(grade).flat().filter(a => a.codigo === discSelecionada.codigo);
+    const atualT = aulasGlobal.filter(a => a.tipo === 'Teórica').length;
+    const atualP = aulasGlobal.filter(a => a.tipo !== 'Teórica').length;
+
+    if (tipo === 'Teórica' && atualT >= metaT) {
+        return alert(`Limite GLOBAL de aulas Teóricas atingido (${metaT}).`);
+    }
+    if (tipo !== 'Teórica' && atualP >= metaP) {
+        return alert(`Limite GLOBAL de aulas Práticas atingido (${metaP}).`);
+    }
+
+    const cellId = `${dia}-${horaId}`;
+    if (!grade[cellId]) grade[cellId] = [];
+
+    // 2. VERIFICAÇÃO DE CHOQUES
+    const todosAulas = Object.values(grade).flat();
+
+    // Professor já ocupado neste horário?
+    if (prof !== "A definir" && todosAulas.some(a => a.dia === dia && a.horaId === horaId && a.prof === prof))
+        return alert(`CHOQUE: O prof. ${prof} já tem aula neste horário.`);
+
+    // Turma X desta disciplina já está neste horário?
+    if (grade[cellId].some(a => a.codigo === discSelecionada.codigo && a.turma === turma))
+        return alert(`CHOQUE: A Turma ${turma} já possui atividade neste horário.`);
+
+    // Conflito Pedagógico: Duas disciplinas diferentes do mesmo semestre/PPC
+    if (grade[cellId].some(a => a.semestre === semestre && a.ppc === ppc && a.codigo !== discSelecionada.codigo))
+        return alert(`CONFLITO PEDAGÓGICO: O ${semestre}º Semestre já possui outra disciplina neste horário.`);
+
+    grade[cellId].push({
+        codigo: discSelecionada.codigo, nome: discSelecionada.nome,
+        turma, tipo, prof, sala: document.getElementById('salaAula').value || "S/I",
+        semestre, ppc, dia, horaId
     });
 
-    const chRestante = chTotal - (slotsTurma * 32);
-    document.getElementById('chTotal').innerText = chTotal;
-    document.getElementById('chRestante').innerText = chRestante;
+    localStorage.setItem('grade_horarios_ufmt', JSON.stringify(grade));
+    renderizarGrade();
+    atualizarStatusCarga();
 }
 
 function renderizarGrade() {
@@ -84,12 +142,12 @@ function renderizarGrade() {
                     const card = document.createElement('div');
                     card.className = `aula-box semestre-${aula.semestre}`;
                     card.innerHTML = `
-                        <div class="tipo-badge" onclick="alternarTipo('${cellId}', ${idx})">${aula.tipo[0]}</div>
+                        <div class="tipo-badge">${aula.tipo[0]}</div>
                         <div class="turma-tag">${aula.turma}</div>
-                        <strong class="disc-cod">${aula.codigo}</strong>
+                        <strong>${aula.codigo}</strong>
                         <div class="disc-nome">${aula.nome}</div>
-                        <small class="prof-info">👤 ${aula.prof}</small>
-                        <small class="sala-info">📍 ${aula.sala}</small>
+                        <small>👤 ${aula.prof}</small>
+                        <small>📍 ${aula.sala}</small>
                         <button class="btn-del" onclick="removerAula('${cellId}', ${idx})">×</button>
                     `;
                     container.appendChild(card);
@@ -104,49 +162,12 @@ function renderizarGrade() {
     });
 }
 
-function alocarNaGrade(dia, horaId) {
-    if (!discSelecionada) return alert("Selecione uma disciplina à esquerda.");
-    const turmaAtual = document.getElementById('turmaId').value.trim().toUpperCase() || "ÚNICA";
-    atualizarStatusCarga();
-
-    if (parseInt(document.getElementById('chRestante').innerText) <= 0) {
-        return alert(`A Carga Horária da Turma ${turmaAtual} já foi totalmente alocada!`);
-    }
-
-    const cellId = `${dia}-${horaId}`;
-    const profAtual = document.getElementById('profNome').value || "A definir";
-    if (!grade[cellId]) grade[cellId] = [];
-
-    // Choque de Professor
-    const choqueProf = Object.values(grade).flat().find(a => a.dia === dia && a.horaId === horaId && a.prof === profAtual && profAtual !== "A definir");
-    if (choqueProf) return alert(`CHOQUE DE PROFESSOR: ${profAtual} já está ocupado.`);
-
-    grade[cellId].push({
-        codigo: discSelecionada.codigo, nome: discSelecionada.nome,
-        turma: turmaAtual, tipo: document.getElementById('tipoAula').value,
-        prof: profAtual, sala: document.getElementById('salaAula').value || "S/I",
-        semestre: document.getElementById('filtroSemestre').value,
-        ppc: document.getElementById('filtroPPC').value,
-        dia, horaId
-    });
-
-    localStorage.setItem('grade_horarios_ufmt', JSON.stringify(grade));
-    renderizarGrade(); atualizarStatusCarga();
-}
-
-function alternarTipo(cellId, idx) {
-    const tipos = ["Teórica", "Prática", "Laboratório"];
-    let atual = tipos.indexOf(grade[cellId][idx].tipo);
-    grade[cellId][idx].tipo = tipos[(atual + 1) % tipos.length];
-    localStorage.setItem('grade_horarios_ufmt', JSON.stringify(grade));
-    renderizarGrade();
-}
-
 function removerAula(cellId, idx) {
     grade[cellId].splice(idx, 1);
     if (grade[cellId].length === 0) delete grade[cellId];
     localStorage.setItem('grade_horarios_ufmt', JSON.stringify(grade));
-    renderizarGrade(); atualizarStatusCarga();
+    renderizarGrade();
+    atualizarStatusCarga();
 }
 
 function limparGrade() { if(confirm("Deseja resetar toda a grade?")) { localStorage.clear(); location.reload(); } }
