@@ -21,14 +21,14 @@
                 <select id="periodoAtual" onchange="salvarEAtualizar()"></select>
             </div>
             <div class="select-group">
-                <label>PPC em Edição:</label>
+                <label>PPC:</label>
                 <select id="filtroPPC" onchange="salvarEAtualizar()">
                     <option value="20251">PPC 2025/1 (Antigo)</option>
                     <option value="20261" selected>PPC 2026/1 (Novo)</option>
                 </select>
             </div>
             <div class="select-group">
-                <label>Filtrar Semestre:</label>
+                <label>Semestre:</label>
                 <select id="filtroSemestre" onchange="salvarEAtualizar()"></select>
             </div>
             <div class="btns-header">
@@ -40,7 +40,6 @@
 </header>
 
 <main class="app-layout">
-    <!-- BARRA LATERAL -->
     <aside class="sidebar">
         <div id="listaDisciplinas" class="lista-disciplinas"></div>
 
@@ -68,9 +67,9 @@
             </div>
 
             <div class="config-box alocacao-bg">
-                <label>3. Adicionar na Grade:</label>
+                <label>3. Adicionar Aula:</label>
                 <div class="field">
-                    <label>Tipo de Aula:</label>
+                    <label>Tipo:</label>
                     <select id="tipoAula">
                         <option value="Teórica">Teórica</option>
                         <option value="Prática">Prática</option>
@@ -92,7 +91,6 @@
         </div>
     </aside>
 
-    <!-- ÁREA CENTRAL -->
     <section class="grid-content">
         <div class="grid-container">
             <h2 id="tituloPeriodo" style="text-align: center; color: var(--primary);"></h2>
@@ -111,15 +109,14 @@
             </table>
         </div>
 
-        <!-- QUADRO DE MIGRAÇÃO -->
         <div class="matriz-resumo">
             <h3>Quadro de Migração PPC (Conferência)</h3>
             <div class="ppc-section">
-                <div class="ppc-tag antigo">PPC 2025/1 - CURRÍCULO ANTIGO (EM EXTINÇÃO)</div>
+                <div class="ppc-tag antigo">PPC 2025/1 - CURRÍCULO ANTIGO</div>
                 <div id="matriz2025" class="grid-matriz"></div>
             </div>
             <div class="ppc-section">
-                <div class="ppc-tag novo">PPC 2026/1 - CURRÍCULO NOVO (MIGRAÇÃO)</div>
+                <div class="ppc-tag novo">PPC 2026/1 - CURRÍCULO NOVO</div>
                 <div id="matriz2026" class="grid-matriz"></div>
             </div>
         </div>

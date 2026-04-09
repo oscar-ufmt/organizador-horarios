@@ -2,14 +2,10 @@ const REGRAS_OFERTA = {
     "2026/1": { "20261": [1], "20251": [2, 4, 6, 8] },
     "2026/2": { "20261": [2], "20251": [3, 5, 7] },
     "2027/1": { "20261": [1, 3], "20251": [4, 6, 8] },
-    "2027/2": { "20261": [2, 4], "20251": [5, 7] },
-    "2028/1": { "20261": [1, 3, 5], "20251": [6, 8] },
-    "2028/2": { "20261": [2, 4, 6], "20251": [7] },
-    "2029/1": { "20261": [1, 3, 5, 7], "20251": [8] },
-    "2029/2": { "20261": [2, 4, 6, 8], "20251": [] }
+    "2027/2": { "20261": [2, 4], "20251": [5, 7] }
 };
 
-const DB_KEY = 'UFMT_V9_2_FINAL';
+const DB_KEY = 'UFMT_V10_PRO_FINAL';
 
 let disciplinas = [];
 let grade = JSON.parse(localStorage.getItem(DB_KEY)) || {};
@@ -27,6 +23,7 @@ async function carregarDados() {
         disciplinas = await res.json();
 
         const pSel = document.getElementById('periodoAtual');
+        pSel.innerHTML = '';
         Object.keys(REGRAS_OFERTA).forEach(p => {
             const opt = document.createElement('option');
             opt.value = p; opt.textContent = p;
@@ -34,13 +31,14 @@ async function carregarDados() {
         });
 
         const sSel = document.getElementById('filtroSemestre');
+        sSel.innerHTML = '';
         for(let i=1; i<=8; i++) {
             let opt = document.createElement('option');
             opt.value = i; opt.textContent = i + "º Semestre";
             sSel.appendChild(opt);
         }
         salvarEAtualizar();
-    } catch (e) { console.error("Erro no carregamento."); }
+    } catch (e) { console.error("Erro no fetch."); }
 }
 
 function sincronizarInterface() {
@@ -49,7 +47,7 @@ function sincronizarInterface() {
     const selVinc = document.getElementById('selectVinc');
     const valorAtual = selVinc.value;
 
-    selVinc.innerHTML = '<option value="GERAL">Todas as Turmas Atuais (Geral)</option>';
+    selVinc.innerHTML = '<option value="GERAL">Todas as Turmas (Geral)</option>';
     etiquetas.forEach(et => {
         const opt = document.createElement('option');
         opt.value = et; opt.textContent = `Apenas: ${et}`;
@@ -100,6 +98,7 @@ function alocarNaGrade(dia, horaId) {
     if (!discSelecionada) return alert("Selecione uma disciplina!");
     const periodo = document.getElementById('periodoAtual').value;
     const ppc = document.getElementById('filtroPPC').value;
+    const sem = document.getElementById('filtroSemestre').value;
     const etiquetas = document.getElementById('inputEtiquetas').value.split(',').map(s => s.trim().toUpperCase()).filter(s => s !== '');
     const vinc = document.getElementById('selectVinc').value;
     const tipo = document.getElementById('tipoAula').value;
@@ -107,7 +106,7 @@ function alocarNaGrade(dia, horaId) {
     const mP = parseInt(document.getElementById('metaP').value) || 0;
     const limite = (tipo === 'Teórica' ? mT : mP);
 
-    if (etiquetas.length === 0) return alert("Digite as turmas primeiro.");
+    if (etiquetas.length === 0) return alert("Passo 1: Digite as turmas.");
 
     const aulasAtuais = getAulasDestaDisciplina();
 
@@ -125,9 +124,12 @@ function alocarNaGrade(dia, horaId) {
     const cellId = `${dia}-${horaId}`;
     if (!grade[cellId]) grade[cellId] = [];
 
+    const outraMateria = grade[cellId].some(a => a.periodo === periodo && a.ppc === ppc && a.semestre === sem && a.codigo !== discSelecionada.codigo);
+    if (outraMateria) return alert("CONFLITO: Já existe outra disciplina deste semestre aqui.");
+
     const prof = document.getElementById('profNome').value.trim() || "A definir";
     if (prof !== "A definir" && grade[cellId].some(a => a.prof === prof && a.periodo === periodo)) {
-        return alert("O professor já tem aula neste horário.");
+        return alert("Professor já ocupado neste horário.");
     }
 
     grade[cellId].push({
@@ -140,7 +142,7 @@ function alocarNaGrade(dia, horaId) {
         ppc: ppc,
         periodo: periodo,
         prof: prof,
-        semestre: document.getElementById('filtroSemestre').value
+        semestre: sem
     });
 
     salvarEAtualizar();
@@ -163,15 +165,14 @@ function renderizarGrade() {
                     const card = document.createElement('div');
                     card.className = `aula-box semestre-${aula.semestre}`;
                     const tags = aula.vinc === 'GERAL' ? aula.snapshotEtiquetas.join(', ') : aula.vinc;
-
                     card.innerHTML = `
                         <span class="turma-tag">${tags}</span>
                         <strong>${aula.codigo}</strong>
                         <div style="font-size:0.6rem; font-weight:700; margin:2px 0;">${aula.nome}</div>
-                        <div style="font-size:0.55rem; color:var(--primary); font-weight:600; border-top:1px dashed #ccc; padding-top:2px; margin-top:2px;">
+                        <div style="font-size:0.55rem; color:var(--primary); font-weight:600; border-top:1px dashed #ccc; padding-top:2px;">
                            👤 ${aula.prof}
                         </div>
-                        <button class="btn-del" onclick="removerAula('${cellId}', '${aula.uid}')">×</button>
+                        <button class="btn-del" onclick="removerAula('${cellId}', ${aula.uid})">×</button>
                     `;
                     container.appendChild(card);
                 });
@@ -197,22 +198,12 @@ function renderizarMatrizResumo() {
         const container = document.getElementById(ppc === '20251' ? 'matriz2025' : 'matriz2026');
         container.innerHTML = '';
         if (!REGRAS_OFERTA[periodo] || !REGRAS_OFERTA[periodo][ppc]) return;
-
         REGRAS_OFERTA[periodo][ppc].forEach(sem => {
             const col = document.createElement('div');
             col.className = 'semestre-coluna';
             col.innerHTML = `<h4>${sem}º Sem.</h4>`;
-
             disciplinas.filter(d => d[`ppc_${ppc}`] == sem).forEach(d => {
-                // VERIFICAÇÃO DE CONFIRMAÇÃO NO RODAPÉ (FIX)
-                let temAula = false;
-                Object.values(grade).forEach(slot => {
-                    slot.forEach(a => {
-                        // Corrigido para ignorar o filtro de semestre do cabeçalho e olhar apenas PPC/Período
-                        if(a.codigo === d.codigo && a.periodo === periodo && a.ppc === ppc) temAula = true;
-                    });
-                });
-
+                const temAula = Object.values(grade).some(slot => slot.some(a => a.codigo === d.codigo && a.ppc === ppc && a.periodo === periodo));
                 const item = document.createElement('div');
                 item.className = `item-resumo ${temAula ? 'ok' : ''}`;
                 item.innerHTML = `<span>${d.nome}</span> <span>${temAula ? '✅' : ''}</span>`;
@@ -229,16 +220,8 @@ function carregarDisciplinas() {
     const periodo = document.getElementById('periodoAtual').value;
     const container = document.getElementById('listaDisciplinas');
     container.innerHTML = '';
-
     disciplinas.filter(d => d[`ppc_${ppc}`] == sem).forEach(d => {
-        // VERIFICAÇÃO DE CONFIRMAÇÃO NA BARRA LATERAL
-        let temAula = false;
-        Object.values(grade).forEach(slot => {
-            slot.forEach(a => {
-                if(a.codigo === d.codigo && a.periodo === periodo && a.ppc === ppc) temAula = true;
-            });
-        });
-
+        const temAula = Object.values(grade).some(slot => slot.some(a => a.codigo === d.codigo && a.ppc === ppc && a.periodo === periodo));
         const div = document.createElement('div');
         div.className = `card-disc-item semestre-${sem} ${discSelecionada?.codigo === d.codigo ? 'active' : ''} ${temAula ? 'concluida' : ''}`;
         div.innerHTML = `<div><strong>${temAula ? '✅ ' : ''}${d.codigo}</strong><br><small>${d.nome}</small></div><span class="badge-ch">${d.carga_horaria}</span>`;
@@ -260,14 +243,10 @@ function selecionarDisciplina(d) {
 
 function salvarEAtualizar() {
     localStorage.setItem(DB_KEY, JSON.stringify(grade));
-    renderizarGrade();
-    carregarDisciplinas();
-    renderizarMatrizResumo();
-    atualizarStatusCarga();
+    renderizarGrade(); carregarDisciplinas(); renderizarMatrizResumo(); atualizarStatusCarga();
 }
 
 function resetAbsoluto() {
-    if(confirm("Confirmar Reset TOTAL?")) { localStorage.clear(); grade = {}; location.reload(); }
+    if(confirm("Deseja apagar TUDO?")) { localStorage.clear(); grade = {}; location.reload(); }
 }
-
 carregarDados();
