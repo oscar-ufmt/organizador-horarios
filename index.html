@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UFMT | Gestão de Oferta Acadêmica</title>
+    <title>UFMT | Gestor de Oferta V8.1</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -17,56 +17,66 @@
         </div>
         <div class="controles">
             <div class="select-group">
+                <label>Período Letivo:</label>
+                <select id="periodoAtual" onchange="salvarEAtualizar()"></select>
+            </div>
+            <div class="select-group">
                 <label>PPC:</label>
                 <select id="filtroPPC" onchange="salvarEAtualizar()">
-                    <option value="20251">2025/1</option>
-                    <option value="20261" selected>2026/1</option>
+                    <option value="20251">PPC 2025/1 (Antigo)</option>
+                    <option value="20261" selected>PPC 2026/1 (Novo)</option>
                 </select>
             </div>
             <div class="select-group">
                 <label>Semestre:</label>
                 <select id="filtroSemestre" onchange="salvarEAtualizar()"></select>
             </div>
-            <button onclick="window.print()" class="btn-outline">📄 Gerar PDF</button>
-            <button onclick="limparGrade()" class="btn-danger-outline">Resetar Grade</button>
+            <button onclick="resetAbsoluto()" class="btn-danger-outline">Resetar Sistema</button>
         </div>
     </div>
 </header>
 
 <main class="app-layout">
-    <!-- BARRA LATERAL -->
     <aside class="sidebar">
-        <h3>Disciplinas do Semestre</h3>
         <div id="listaDisciplinas" class="lista-disciplinas"></div>
 
-        <div id="formConfig" class="card form-detalhes" style="display:none;">
-            <h4>Configurar Alocação</h4>
-            <p id="nomeDiscSelecionada" class="highlight-text"></p>
-            <p id="cargaHorariaInfo" class="ch-label-info"></p>
+        <div id="formConfig" class="card form-detalhes" style="display:none; border-top: 5px solid var(--primary);">
+            <h4>Configurar Planejamento</h4>
+            <p id="nomeDiscSelecionada" class="highlight-text" style="color:var(--primary); font-weight:800;"></p>
 
-            <div class="meta-container">
-                <div class="field">
-                    <label>Aulas Teóricas:</label>
-                    <input type="number" id="metaT" value="1" min="0" onchange="atualizarStatusCarga()">
-                </div>
-                <div class="field">
-                    <label>Aulas Práticas:</label>
-                    <input type="number" id="metaP" value="0" min="0" onchange="atualizarStatusCarga()">
+            <div class="config-box">
+                <label>1. Turmas (etiquetas separadas por vírgula):</label>
+                <input type="text" id="inputEtiquetas" placeholder="Ex: EC1, EC2" oninput="sincronizarInterface()">
+            </div>
+
+            <div class="config-box">
+                <label>2. Meta de Slots (por Turma):</label>
+                <div class="input-row">
+                    <div class="field">
+                        <label>Teoria:</label>
+                        <input type="number" id="metaT" value="1" min="0" oninput="atualizarStatusCarga()">
+                    </div>
+                    <div class="field">
+                        <label>Prática:</label>
+                        <input type="number" id="metaP" value="1" min="0" oninput="atualizarStatusCarga()">
+                    </div>
                 </div>
             </div>
 
-            <!-- ALERTAS DINÂMICOS -->
-            <div id="alertaHorario"></div>
-
-            <div class="status-resumo">
-                <div class="status-item">Teoria: <span id="countT">0/0</span></div>
-                <div class="status-item">Prática: <span id="countP">0/0</span></div>
-            </div>
-
-            <div class="input-row">
+            <div class="config-box alocacao-bg">
+                <label>3. Adicionar Aula:</label>
                 <div class="field">
-                    <label>Turma (Etiqueta):</label>
-                    <input type="text" id="turmaId" placeholder="Ex: A, B, VE1" value="A" oninput="atualizarStatusCarga()">
+                    <label>Tipo:</label>
+                    <select id="tipoAula">
+                        <option value="Teórica">Teórica</option>
+                        <option value="Prática">Prática</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Público:</label>
+                    <select id="selectVinc">
+                        <option value="GERAL">Todas as Turmas (Geral)</option>
+                    </select>
                 </div>
                 <div class="field">
                     <label>Professor:</label>
@@ -74,39 +84,39 @@
                 </div>
             </div>
 
-            <div class="input-row">
-                <div class="field">
-                    <label>Tipo de Aula:</label>
-                    <select id="tipoAula">
-                        <option value="Teórica">Teórica</option>
-                        <option value="Prática">Prática</option>
-                        <option value="Laboratório">Laboratório</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>Sala/Local:</label>
-                    <input type="text" id="salaAula" placeholder="Ex: Lab 02">
-                </div>
-            </div>
-            <p class="instrucao">Ajuste os dados e clique no <b>+</b> da grade.</p>
+            <div id="statusCargaDinamica" class="status-resumo-sidebar"></div>
         </div>
     </aside>
 
-    <!-- GRADE DE HORÁRIOS -->
-    <section class="grid-container">
-        <table class="horario-table">
-            <thead>
-            <tr>
-                <th>Horário</th>
-                <th>Segunda</th>
-                <th>Terça</th>
-                <th>Quarta</th>
-                <th>Quinta</th>
-                <th>Sexta</th>
-            </tr>
-            </thead>
-            <tbody id="corpoTabela"></tbody>
-        </table>
+    <section class="grid-content">
+        <div class="grid-container">
+            <h2 id="tituloPeriodo" style="text-align: center; color: var(--primary);"></h2>
+            <table class="horario-table">
+                <thead>
+                <tr>
+                    <th>Horário</th>
+                    <th>Segunda</th>
+                    <th>Terça</th>
+                    <th>Quarta</th>
+                    <th>Quinta</th>
+                    <th>Sexta</th>
+                </tr>
+                </thead>
+                <tbody id="corpoTabela"></tbody>
+            </table>
+        </div>
+
+        <div class="matriz-resumo">
+            <h3>Quadro de Migração PPC</h3>
+            <div class="ppc-section">
+                <div class="ppc-tag antigo">PPC 2025/1 (ANTIGO)</div>
+                <div id="matriz2025" class="grid-matriz"></div>
+            </div>
+            <div class="ppc-section">
+                <div class="ppc-tag novo">PPC 2026/1 (NOVO)</div>
+                <div id="matriz2026" class="grid-matriz"></div>
+            </div>
+        </div>
     </section>
 </main>
 
