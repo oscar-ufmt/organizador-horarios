@@ -3,14 +3,13 @@ const REGRAS_OFERTA = {
     "2026/2": { "20261": [2], "20251": [3, 5, 7] },
     "2027/1": { "20261": [1, 3], "20251": [4, 6, 8] },
     "2027/2": { "20261": [2, 4], "20251": [5, 7] },
-    "2028/1": { "20261": [1, 3, 5], "20251": [6, 8,] },
-    "2028/2": { "20261": [2, 4, 6], "20251": [7,] },
+    "2028/1": { "20261": [1, 3, 5], "20251": [6, 8] },
+    "2028/2": { "20261": [2, 4, 6], "20251": [7] },
     "2029/1": { "20261": [1, 3, 5, 7], "20251": [8] },
-    "2029/2": { "20261": [2, 4, 6, 8], "20251": [] } // 2025/1 Extinto
+    "2029/2": { "20261": [2, 4, 6, 8], "20251": [] }
 };
 
-
-const DB_KEY = 'UFMT_V8_1_PRO'; // Atualizado para nova versão visual
+const DB_KEY = 'UFMT_V9_2_FINAL';
 
 let disciplinas = [];
 let grade = JSON.parse(localStorage.getItem(DB_KEY)) || {};
@@ -41,7 +40,7 @@ async function carregarDados() {
             sSel.appendChild(opt);
         }
         salvarEAtualizar();
-    } catch (e) { console.error("Erro no fetch."); }
+    } catch (e) { console.error("Erro no carregamento."); }
 }
 
 function sincronizarInterface() {
@@ -50,7 +49,7 @@ function sincronizarInterface() {
     const selVinc = document.getElementById('selectVinc');
     const valorAtual = selVinc.value;
 
-    selVinc.innerHTML = '<option value="GERAL">Todas as Turmas (Geral)</option>';
+    selVinc.innerHTML = '<option value="GERAL">Todas as Turmas Atuais (Geral)</option>';
     etiquetas.forEach(et => {
         const opt = document.createElement('option');
         opt.value = et; opt.textContent = `Apenas: ${et}`;
@@ -61,6 +60,7 @@ function sincronizarInterface() {
 }
 
 function getAulasDestaDisciplina() {
+    if(!discSelecionada) return [];
     const ppc = document.getElementById('filtroPPC').value;
     const periodo = document.getElementById('periodoAtual').value;
     const lista = [];
@@ -103,21 +103,22 @@ function alocarNaGrade(dia, horaId) {
     const etiquetas = document.getElementById('inputEtiquetas').value.split(',').map(s => s.trim().toUpperCase()).filter(s => s !== '');
     const vinc = document.getElementById('selectVinc').value;
     const tipo = document.getElementById('tipoAula').value;
-    const metaT = parseInt(document.getElementById('metaT').value) || 0;
-    const metaP = parseInt(document.getElementById('metaP').value) || 0;
-    const limite = (tipo === 'Teórica' ? metaT : metaP);
+    const mT = parseInt(document.getElementById('metaT').value) || 0;
+    const mP = parseInt(document.getElementById('metaP').value) || 0;
+    const limite = (tipo === 'Teórica' ? mT : mP);
 
-    if (etiquetas.length === 0) return alert("Passo 1: Digite as turmas.");
+    if (etiquetas.length === 0) return alert("Digite as turmas primeiro.");
 
-    const aulasNoGrade = getAulasDestaDisciplina();
+    const aulasAtuais = getAulasDestaDisciplina();
 
     if (vinc === 'GERAL') {
-        for (let et of etiquetas) {
-            const count = aulasNoGrade.filter(a => a.tipo === tipo && (a.vinc === et || (a.vinc === 'GERAL' && a.snapshotEtiquetas.includes(et)))).length;
-            if (count >= limite) return alert(`BLOQUEIO: A turma ${et} já atingiu o limite.`);
-        }
+        let cheias = etiquetas.filter(et => {
+            const c = aulasAtuais.filter(a => a.tipo === tipo && (a.vinc === et || (a.vinc === 'GERAL' && a.snapshotEtiquetas.includes(et)))).length;
+            return c >= limite;
+        });
+        if (cheias.length > 0) return alert(`BLOQUEIO: A turma ${cheias[0]} já atingiu o limite.`);
     } else {
-        const count = aulasNoGrade.filter(a => a.tipo === tipo && (a.vinc === vinc || (a.vinc === 'GERAL' && a.snapshotEtiquetas.includes(vinc)))).length;
+        const count = aulasAtuais.filter(a => a.tipo === tipo && (a.vinc === vinc || (a.vinc === 'GERAL' && a.snapshotEtiquetas.includes(vinc)))).length;
         if (count >= limite) return alert(`BLOQUEIO: A turma ${vinc} já atingiu o limite.`);
     }
 
@@ -126,7 +127,7 @@ function alocarNaGrade(dia, horaId) {
 
     const prof = document.getElementById('profNome').value.trim() || "A definir";
     if (prof !== "A definir" && grade[cellId].some(a => a.prof === prof && a.periodo === periodo)) {
-        return alert("Professor já ocupado neste horário.");
+        return alert("O professor já tem aula neste horário.");
     }
 
     grade[cellId].push({
@@ -161,14 +162,12 @@ function renderizarGrade() {
                 grade[cellId].filter(a => a.periodo === periodo).forEach(aula => {
                     const card = document.createElement('div');
                     card.className = `aula-box semestre-${aula.semestre}`;
-
-                    // LÓGICA DE ETIQUETAS: Se for geral, mostra a lista. Se não, mostra só a dele.
-                    const tagsParaMostrar = aula.vinc === 'GERAL' ? aula.snapshotEtiquetas.join(', ') : aula.vinc;
+                    const tags = aula.vinc === 'GERAL' ? aula.snapshotEtiquetas.join(', ') : aula.vinc;
 
                     card.innerHTML = `
-                        <span class="turma-tag" style="white-space: normal; line-height: 1.2;">${tagsParaMostrar}</span>
+                        <span class="turma-tag">${tags}</span>
                         <strong>${aula.codigo}</strong>
-                        <div style="font-size:0.6rem; font-weight:700; margin:3px 0;">${aula.nome}</div>
+                        <div style="font-size:0.6rem; font-weight:700; margin:2px 0;">${aula.nome}</div>
                         <div style="font-size:0.55rem; color:var(--primary); font-weight:600; border-top:1px dashed #ccc; padding-top:2px; margin-top:2px;">
                            👤 ${aula.prof}
                         </div>
@@ -198,12 +197,22 @@ function renderizarMatrizResumo() {
         const container = document.getElementById(ppc === '20251' ? 'matriz2025' : 'matriz2026');
         container.innerHTML = '';
         if (!REGRAS_OFERTA[periodo] || !REGRAS_OFERTA[periodo][ppc]) return;
+
         REGRAS_OFERTA[periodo][ppc].forEach(sem => {
             const col = document.createElement('div');
             col.className = 'semestre-coluna';
             col.innerHTML = `<h4>${sem}º Sem.</h4>`;
+
             disciplinas.filter(d => d[`ppc_${ppc}`] == sem).forEach(d => {
-                const temAula = Object.values(grade).some(slot => slot.some(a => a.codigo === d.codigo && a.ppc === ppc && a.periodo === periodo));
+                // VERIFICAÇÃO DE CONFIRMAÇÃO NO RODAPÉ (FIX)
+                let temAula = false;
+                Object.values(grade).forEach(slot => {
+                    slot.forEach(a => {
+                        // Corrigido para ignorar o filtro de semestre do cabeçalho e olhar apenas PPC/Período
+                        if(a.codigo === d.codigo && a.periodo === periodo && a.ppc === ppc) temAula = true;
+                    });
+                });
+
                 const item = document.createElement('div');
                 item.className = `item-resumo ${temAula ? 'ok' : ''}`;
                 item.innerHTML = `<span>${d.nome}</span> <span>${temAula ? '✅' : ''}</span>`;
@@ -217,12 +226,22 @@ function renderizarMatrizResumo() {
 function carregarDisciplinas() {
     const ppc = document.getElementById('filtroPPC').value;
     const sem = document.getElementById('filtroSemestre').value;
+    const periodo = document.getElementById('periodoAtual').value;
     const container = document.getElementById('listaDisciplinas');
     container.innerHTML = '';
+
     disciplinas.filter(d => d[`ppc_${ppc}`] == sem).forEach(d => {
+        // VERIFICAÇÃO DE CONFIRMAÇÃO NA BARRA LATERAL
+        let temAula = false;
+        Object.values(grade).forEach(slot => {
+            slot.forEach(a => {
+                if(a.codigo === d.codigo && a.periodo === periodo && a.ppc === ppc) temAula = true;
+            });
+        });
+
         const div = document.createElement('div');
-        div.className = `card-disc-item ${discSelecionada?.codigo === d.codigo ? 'active' : ''}`;
-        div.innerHTML = `<div><strong>${d.codigo}</strong><br><small>${d.nome}</small></div><span class="badge-ch">${d.carga_horaria}</span>`;
+        div.className = `card-disc-item semestre-${sem} ${discSelecionada?.codigo === d.codigo ? 'active' : ''} ${temAula ? 'concluida' : ''}`;
+        div.innerHTML = `<div><strong>${temAula ? '✅ ' : ''}${d.codigo}</strong><br><small>${d.nome}</small></div><span class="badge-ch">${d.carga_horaria}</span>`;
         div.onclick = () => selecionarDisciplina(d);
         container.appendChild(div);
     });
@@ -241,10 +260,14 @@ function selecionarDisciplina(d) {
 
 function salvarEAtualizar() {
     localStorage.setItem(DB_KEY, JSON.stringify(grade));
-    renderizarGrade(); carregarDisciplinas(); renderizarMatrizResumo(); atualizarStatusCarga();
+    renderizarGrade();
+    carregarDisciplinas();
+    renderizarMatrizResumo();
+    atualizarStatusCarga();
 }
 
 function resetAbsoluto() {
     if(confirm("Confirmar Reset TOTAL?")) { localStorage.clear(); grade = {}; location.reload(); }
 }
+
 carregarDados();

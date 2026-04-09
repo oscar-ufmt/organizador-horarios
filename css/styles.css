@@ -1,53 +1,128 @@
 :root {
     --primary: #003d79; --accent: #fbbf24; --bg: #f1f5f9; --border: #cbd5e1;
-    --success: #10b981; --danger: #ef4444; --ppc2026: #065f46; --ppc2025: #1e40af;
+    --success: #10b981; --danger: #ef4444; --ppc2025: #1e40af; --ppc2026: #065f46;
 }
 
 body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; color: #1e293b; font-size: 13px; }
 
+/* HEADER */
 .main-header { background: var(--primary); color: white; padding: 10px 20px; position: fixed; top: 0; width: 100%; z-index: 1000; height: 70px; display: flex; align-items: center; }
 .header-container { max-width: 1800px; width: 100%; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
 .controles { display: flex; gap: 10px; align-items: flex-end; }
-.select-group label { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; color: #cbd5e1; display: block; }
+.select-group label { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; color: #cbd5e1; display: block; margin-bottom: 2px; }
 .select-group select { padding: 4px; border-radius: 4px; border: none; font-size: 0.75rem; }
 
+.btn-outline, .btn-danger-outline { padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 0.75rem; background: white; border: 1px solid var(--border); }
+.btn-outline { color: var(--primary); }
+.btn-danger-outline { color: var(--danger); border-color: var(--danger); }
+
+/* LAYOUT */
 .app-layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; padding: 20px; margin-top: 70px; }
 .sidebar { background: white; padding: 15px; border-radius: 10px; border: 1px solid var(--border); height: calc(100vh - 100px); overflow-y: auto; position: sticky; top: 85px; }
 
-/* CONFIG BOXES */
 .config-box { background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 10px; }
-.config-box label { font-weight: 800; font-size: 0.7rem; color: var(--primary); display: block; margin-bottom: 5px; }
+.config-box label { font-weight: 800; font-size: 0.65rem; color: var(--primary); display: block; margin-bottom: 5px; }
 .config-box input { width: 100%; padding: 5px; border: 1px solid var(--border); border-radius: 4px; }
 .alocacao-bg { background: #eff6ff; border-color: #bfdbfe; }
 
 /* GRADE */
 .horario-table { width: 100%; border-collapse: collapse; background: white; border: 2px solid var(--border); table-layout: fixed; }
 .horario-table th { background: #f8fafc; padding: 8px; font-size: 0.7rem; border: 1px solid var(--border); color: var(--primary); }
-.horario-table td { border: 1px solid var(--border); padding: 5px; vertical-align: top; height: 150px; }
+.horario-table td { border: 1px solid var(--border); padding: 5px; vertical-align: top; height: 160px; }
 .hora-label { background: #f8fafc; width: 85px; text-align: center; font-weight: 800; font-size: 0.65rem; color: #475569; }
 
 /* CARDS */
 .aula-box { background: #fff; padding: 8px; border-radius: 4px; font-size: 0.65rem; border: 1px solid #e2e8f0; border-left: 5px solid #94a3b8; position: relative; margin-bottom: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-.turma-tag { background: #1e293b; color: white; padding: 2px 4px; border-radius: 3px; font-size: 0.55rem; font-weight: 900; margin-right: 4px; }
-.btn-del { position: absolute; top: 2px; right: 2px; color: var(--danger); border: none; background: none; cursor: pointer; font-size: 16px; }
-.btn-adicionar-vaga { width: 100%; border: 1px dashed var(--border); background: none; cursor: pointer; padding: 4px; border-radius: 4px; color: #94a3b8; font-size: 1.1rem; }
+.turma-tag { background: #1e293b; color: white; padding: 2px 4px; border-radius: 3px; font-size: 0.55rem; font-weight: 900; margin-bottom: 3px; display: inline-block; }
+.btn-del { position: absolute; top: 2px; right: 2px; border: none; background: none; color: var(--danger); cursor: pointer; font-size: 16px; }
 
-/* RESUMO */
+/* MATRIZ RESUMO */
 .matriz-resumo { background: white; padding: 20px; border-radius: 10px; border: 1px solid var(--border); margin-top: 20px; }
-.ppc-tag { padding: 6px 15px; color: white; font-weight: 800; font-size: 0.75rem; border-radius: 6px 6px 0 0; margin-top: 15px; }
+.ppc-tag { padding: 6px 12px; color: white; font-weight: 800; font-size: 0.75rem; border-radius: 6px 6px 0 0; margin-top: 15px; }
 .antigo { background: var(--ppc2025); }
 .novo { background: var(--ppc2026); }
-.grid-matriz { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; background: #f8fafc; padding: 10px; border: 1px solid #e2e8f0; border-top: none; }
+.grid-matriz { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; background: #f8fafc; padding: 10px; border: 1px solid #e2e8f0; border-top: none; }
 .semestre-coluna { background: white; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; }
 .semestre-coluna h4 { margin: -8px -8px 8px -8px; font-size: 0.65rem; background: #f1f5f9; padding: 4px; text-align: center; border-bottom: 1px solid #e2e8f0; }
-.item-resumo { font-size: 0.6rem; padding: 4px 6px; margin-bottom: 3px; display: flex; justify-content: space-between; border-left: 3px solid #cbd5e1; background: #fff; border: 1px solid #f1f5f9; }
-.item-resumo.ok { background: #f0fdf4; border-left-color: var(--success); font-weight: bold; }
+.item-resumo { font-size: 0.6rem; padding: 4px 6px; margin-bottom: 3px; display: flex; justify-content: space-between; border-left: 3px solid #cbd5e1; background: #fff; border: 1px solid #f1f5f9; line-height: 1.1; }
+.item-resumo.ok { background: #f0fdf4; border-left-color: var(--success); font-weight: 700; }
 
 .status-resumo-sidebar { background: #1e293b; color: white; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.65rem; }
-.status-line { display: flex; justify-content: space-between; margin-bottom: 3px; border-bottom: 1px solid #334155; }
+.status-line { display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding: 2px 0; }
 
+/* Cores Semestres (Telas e Barra Lateral) */
+.semestre-1 { border-left-color: #ef4444 !important; }
+.semestre-2 { border-left-color: #f97316 !important; }
+.semestre-3 { border-left-color: #eab308 !important; }
+.semestre-4 { border-left-color: #22c55e !important; }
+.semestre-5 { border-left-color: #06b6d4 !important; }
+.semestre-6 { border-left-color: #3b82f6 !important; }
+.semestre-7 { border-left-color: #6366f1 !important; }
+.semestre-8 { border-left-color: #a855f7 !important; }
+
+/* ==========================================================================
+   CONFIGURAÇÃO DE IMPRESSÃO PDF (HORIZONTAL COM CORES)
+   ========================================================================== */
 @media print {
-    .sidebar, .btn-adicionar-vaga, .btn-del { display: none !important; }
-    .main-header { position: static; background: white; color: black; border-bottom: 2px solid black; }
-    .app-layout { display: block; margin-top: 0; }
+    @page {
+        size: landscape;
+        margin: 1cm;
+    }
+
+    /* Força o navegador a imprimir cores de fundo e bordas */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+
+    body { background: white !important; }
+    .main-header, .sidebar, .btn-adicionar-vaga, .btn-del, .matriz-resumo, .btns-header {
+        display: none !important;
+    }
+
+    .app-layout { display: block; margin-top: 0; padding: 0; }
+
+    #tituloPeriodo {
+        display: block !important;
+        text-align: center;
+        color: black !important;
+        margin-bottom: 20px;
+    }
+
+    .horario-table {
+        width: 100% !important;
+        border: 2px solid black !important;
+        table-layout: fixed;
+    }
+
+    .horario-table th, .horario-table td {
+        border: 1px solid black !important;
+        color: black !important;
+        padding: 5px !important;
+    }
+
+    .aula-box {
+        border: 1px solid #999 !important;
+        break-inside: avoid;
+        border-left-width: 8px !important; /* Bordas mais grossas para destaque no PDF */
+        background: #fff !important;
+        margin-bottom: 5px !important;
+    }
+
+    /* Cores específicas para o PDF (Garantia) */
+    .semestre-1 { border-left-color: #ef4444 !important; }
+    .semestre-2 { border-left-color: #f97316 !important; }
+    .semestre-3 { border-left-color: #eab308 !important; }
+    .semestre-4 { border-left-color: #22c55e !important; }
+    .semestre-5 { border-left-color: #06b6d4 !important; }
+    .semestre-6 { border-left-color: #3b82f6 !important; }
+    .semestre-7 { border-left-color: #6366f1 !important; }
+    .semestre-8 { border-left-color: #a855f7 !important; }
+
+    .turma-tag {
+        background: #333 !important;
+        color: white !important;
+        border: none !important;
+    }
 }
