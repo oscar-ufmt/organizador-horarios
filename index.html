@@ -6,6 +6,8 @@
     <title>UFMT | Gestor de Oferta Acadêmica</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
+    <!-- Biblioteca para gerar Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -32,8 +34,13 @@
                 <select id="filtroSemestre" onchange="salvarEAtualizar()"></select>
             </div>
             <div class="btns-header">
-                <button onclick="window.print()" class="btn-outline">📄 Gerar PDF</button>
-                <button onclick="resetAbsoluto()" class="btn-danger-outline">Resetar Tudo</button>
+                <input type="file" id="importFile" style="display:none" onchange="importarJSON(this)">
+                <button onclick="document.getElementById('importFile').click()" class="btn-outline">📂 Importar</button>
+                <button onclick="exportarJSON()" class="btn-outline">💾 JSON</button>
+                <button onclick="exportarExcel()" class="btn-outline">📊 Excel</button>
+                <button onclick="imprimirRelatorioSemestre()" class="btn-outline">📋 Relatório</button>
+                <button onclick="window.print()" class="btn-outline">📄 PDF Grade</button>
+                <button onclick="resetAbsoluto()" class="btn-danger-outline">Resetar</button>
             </div>
         </div>
     </div>
@@ -48,13 +55,13 @@
             <p id="nomeDiscSelecionada" class="highlight-text" style="color:var(--primary); font-weight:800;"></p>
 
             <div class="config-box">
-                <label>1. Turmas (etiquetas separadas por vírgula):</label>
+                <label>1. Turmas (separadas por vírgula):</label>
                 <input type="text" id="inputEtiquetas" placeholder="Ex: EC1, EC2" oninput="sincronizarInterface()">
             </div>
 
             <div class="config-box">
                 <label>2. Meta de Slots (por Turma):</label>
-                <div class="input-row">
+                <div style="display: flex; gap: 10px;">
                     <div class="field">
                         <label>Teoria:</label>
                         <input type="number" id="metaT" value="1" min="0" oninput="atualizarStatusCarga()">
@@ -77,13 +84,15 @@
                 </div>
                 <div class="field">
                     <label>Vincular a:</label>
-                    <select id="selectVinc">
-                        <option value="GERAL">Todas as Turmas (Geral)</option>
-                    </select>
+                    <select id="selectVinc"></select>
                 </div>
                 <div class="field">
                     <label>Professor:</label>
                     <input type="text" id="profNome" placeholder="Nome do docente">
+                </div>
+                <div class="field">
+                    <label>Sala / Laboratório:</label>
+                    <input type="text" id="salaLocal" placeholder="Ex: Sala 102, Lab 1">
                 </div>
             </div>
 
