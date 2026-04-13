@@ -6,7 +6,7 @@
     <title>UFMT | Gestor de Oferta Acadêmica</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
-    <!-- Biblioteca para gerar Excel -->
+    <!-- Bibliotecas Externas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -38,7 +38,7 @@
                 <button onclick="document.getElementById('importFile').click()" class="btn-outline">📂 Importar</button>
                 <button onclick="exportarJSON()" class="btn-outline">💾 JSON</button>
                 <button onclick="exportarExcel()" class="btn-outline">📊 Excel</button>
-                <button onclick="imprimirRelatorioSemestre()" class="btn-outline">📋 Relatório</button>
+                <button onclick="imprimirRelatorioCompleto()" class="btn-outline">📋 Relatório Profissional</button>
                 <button onclick="window.print()" class="btn-outline">📄 PDF Grade</button>
                 <button onclick="resetAbsoluto()" class="btn-danger-outline">Resetar</button>
             </div>
@@ -48,33 +48,27 @@
 
 <main class="app-layout">
     <aside class="sidebar">
+        <h4>Disciplinas Obrigatórias</h4>
         <div id="listaDisciplinas" class="lista-disciplinas"></div>
 
-        <div id="formConfig" class="card form-detalhes" style="display:none; border-top: 5px solid var(--primary);">
+        <div class="config-box optativas-box">
+            <label>✨ Disciplinas Optativas:</label>
+            <select id="selectOptativas" onchange="selecionarOptativa(this.value)">
+                <option value="">-- Selecione uma Optativa --</option>
+            </select>
+        </div>
+
+        <div id="formConfig" class="card form-detalhes" style="display:none;">
             <h4>Configurar Planejamento</h4>
-            <p id="nomeDiscSelecionada" class="highlight-text" style="color:var(--primary); font-weight:800;"></p>
+            <p id="nomeDiscSelecionada" class="highlight-text"></p>
 
             <div class="config-box">
                 <label>1. Turmas (separadas por vírgula):</label>
                 <input type="text" id="inputEtiquetas" placeholder="Ex: EC1, EC2" oninput="sincronizarInterface()">
             </div>
 
-            <div class="config-box">
-                <label>2. Meta de Slots (por Turma):</label>
-                <div style="display: flex; gap: 10px;">
-                    <div class="field">
-                        <label>Teoria:</label>
-                        <input type="number" id="metaT" value="1" min="0" oninput="atualizarStatusCarga()">
-                    </div>
-                    <div class="field">
-                        <label>Prática:</label>
-                        <input type="number" id="metaP" value="1" min="0" oninput="atualizarStatusCarga()">
-                    </div>
-                </div>
-            </div>
-
             <div class="config-box alocacao-bg">
-                <label>3. Adicionar Aula:</label>
+                <label>2. Adicionar Aula:</label>
                 <div class="field">
                     <label>Tipo:</label>
                     <select id="tipoAula">
@@ -95,8 +89,6 @@
                     <input type="text" id="salaLocal" placeholder="Ex: Sala 102, Lab 1">
                 </div>
             </div>
-
-            <div id="statusCargaDinamica" class="status-resumo-sidebar"></div>
         </div>
     </aside>
 
