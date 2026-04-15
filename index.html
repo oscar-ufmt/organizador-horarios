@@ -5,18 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UFMT | Gestor de Oferta Acadêmica</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css">
-    <!-- Bibliotecas Externas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
 <header class="main-header">
     <div class="header-container">
-        <div class="brand">
-            <h1>UFMT</h1>
-            <span>Organizador de Horários</span>
-        </div>
+        <div class="brand"><h1>UFMT</h1><span>Gestor de Oferta</span></div>
         <div class="controles">
             <div class="select-group">
                 <label>Período Letivo:</label>
@@ -24,21 +20,23 @@
             </div>
             <div class="select-group">
                 <label>PPC:</label>
-                <select id="filtroPPC" onchange="salvarEAtualizar()">
-                    <option value="20251">PPC 2025/1 (Antigo)</option>
-                    <option value="20261" selected>PPC 2026/1 (Novo)</option>
+                <select id="filtroPPC" onchange="mudarFiltros()">
+                    <option value="20251">PPC 2025/1</option>
+                    <option value="20261" selected>PPC 2026/1</option>
                 </select>
             </div>
             <div class="select-group">
-                <label>Semestre:</label>
-                <select id="filtroSemestre" onchange="salvarEAtualizar()"></select>
+                <label>Semestre Ofertado:</label>
+                <select id="filtroSemestre" onchange="mudarFiltros()"></select>
             </div>
             <div class="btns-header">
-                <input type="file" id="importFile" style="display:none" onchange="importarJSON(this)">
                 <button onclick="document.getElementById('importFile').click()" class="btn-outline">📂 Importar</button>
+                <input type="file" id="importFile" style="display:none" onchange="importarJSON(this)">
                 <button onclick="exportarJSON()" class="btn-outline">💾 JSON</button>
-                <button onclick="exportarExcel()" class="btn-outline">📊 Excel</button>
-                <button onclick="imprimirRelatorioCompleto()" class="btn-outline">📋 Relatório Profissional</button>
+                <button onclick="exportarExcel()" class="btn-outline">📊 Grade Excel</button>
+                <button onclick="exportarEncargosExcel()" class="btn-outline">📊 Encargos Excel</button>
+                <button onclick="imprimirRelatorioCompleto()" class="btn-outline">📋 Relatório Disciplinas</button>
+                <button onclick="imprimirRelatorioEncargos()" class="btn-outline">👨‍🏫 Relatório Encargos</button>
                 <button onclick="window.print()" class="btn-outline">📄 PDF Grade</button>
                 <button onclick="resetAbsoluto()" class="btn-danger-outline">Resetar</button>
             </div>
@@ -48,82 +46,48 @@
 
 <main class="app-layout">
     <aside class="sidebar">
-        <h4>Disciplinas Obrigatórias</h4>
-        <div id="listaDisciplinas" class="lista-disciplinas"></div>
-
+        <h4>Disciplinas do Semestre</h4>
+        <div id="listaDisciplinas"></div>
         <div class="config-box optativas-box">
-            <label>✨ Disciplinas Optativas:</label>
-            <select id="selectOptativas" onchange="selecionarOptativa(this.value)">
-                <option value="">-- Selecione uma Optativa --</option>
-            </select>
-        </div>
-
-        <div id="formConfig" class="card form-detalhes" style="display:none;">
-            <h4>Configurar Planejamento</h4>
-            <p id="nomeDiscSelecionada" class="highlight-text"></p>
-
-            <div class="config-box">
-                <label>1. Turmas (separadas por vírgula):</label>
-                <input type="text" id="inputEtiquetas" placeholder="Ex: EC1, EC2" oninput="sincronizarInterface()">
-            </div>
-
-            <div class="config-box alocacao-bg">
-                <label>2. Adicionar Aula:</label>
-                <div class="field">
-                    <label>Tipo:</label>
-                    <select id="tipoAula">
-                        <option value="Teórica">Teórica</option>
-                        <option value="Prática">Prática</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>Vincular a:</label>
-                    <select id="selectVinc"></select>
-                </div>
-                <div class="field">
-                    <label>Professor:</label>
-                    <input type="text" id="profNome" placeholder="Nome do docente">
-                </div>
-                <div class="field">
-                    <label>Sala / Laboratório:</label>
-                    <input type="text" id="salaLocal" placeholder="Ex: Sala 102, Lab 1">
-                </div>
-            </div>
+            <label>✨ Optativas:</label>
+            <select id="selectOptativas" onchange="selecionarOptativa(this.value)"></select>
         </div>
     </aside>
 
     <section class="grid-content">
-        <div class="grid-container">
-            <h2 id="tituloPeriodo" style="text-align: center; color: var(--primary);"></h2>
-            <table class="horario-table">
-                <thead>
-                <tr>
-                    <th>Horário</th>
-                    <th>Segunda</th>
-                    <th>Terça</th>
-                    <th>Quarta</th>
-                    <th>Quinta</th>
-                    <th>Sexta</th>
-                </tr>
-                </thead>
-                <tbody id="corpoTabela"></tbody>
-            </table>
-        </div>
+        <table class="horario-table">
+            <thead>
+            <tr><th>Horário</th><th>Segunda</th><th>Terça</th><th>Quarta</th><th>Quinta</th><th>Sexta</th></tr>
+            </thead>
+            <tbody id="corpoTabela"></tbody>
+        </table>
 
-        
         <div class="matriz-resumo">
-            <h3>Quadro de Migração PPC (Conferência)</h3>
-            <div class="ppc-section">
-                <div class="ppc-tag antigo">PPC 2025/1 - CURRÍCULO ANTIGO</div>
-                <div id="matriz2025" class="grid-matriz"></div>
-            </div>
-            <div class="ppc-section">
-                <div class="ppc-tag novo">PPC 2026/1 - CURRÍCULO NOVO</div>
-                <div id="matriz2026" class="grid-matriz"></div>
-            </div>
+            <h3>Conferência de Oferta (PPC)</h3>
+            <div id="matriz-20251" class="ppc-container-horizontal antigo-border"></div>
+            <div id="matriz-20261" class="ppc-container-horizontal novo-border"></div>
         </div>
     </section>
 </main>
+
+<div id="modalAula" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <h4 id="modalTitle">Configurar Aula</h4>
+        <div class="config-grid">
+            <div class="field"><label>Turmas:</label><input type="text" id="editTurmas"></div>
+            <div class="field"><label>Professor:</label><input type="text" id="editProf"></div>
+            <div class="field"><label>Sala/Local:</label><input type="text" id="editSala"></div>
+            <div class="field">
+                <label>Tipo:</label>
+                <select id="editTipo"><option value="Teórica">Teórica</option><option value="Prática">Prática</option></select>
+            </div>
+        </div>
+        <div class="modal-btns">
+            <button onclick="fecharModal()" class="btn-outline">Cancelar</button>
+            <button onclick="confirmarAlocacao()" class="btn-primary-full">Confirmar</button>
+        </div>
+    </div>
+</div>
 
 <script src="js/script.js"></script>
 </body>

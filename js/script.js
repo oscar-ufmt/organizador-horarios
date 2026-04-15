@@ -1,3 +1,18 @@
+const DB_KEY = 'UFMT_SISTEMA_V12';
+let disciplinas = [];
+let optativas = [];
+let grade = JSON.parse(localStorage.getItem(DB_KEY)) || {};
+let discSendoAlocada = null;
+let cellSendoAlocada = null;
+let editandoAulaUid = null;
+
+const horarios = [
+    { id: "M1", label: "07:30 - 09:30" }, { id: "M2", label: "09:30 - 11:30" },
+    { id: "T1", label: "13:30 - 15:30" }, { id: "T2", label: "15:30 - 17:30" }
+];
+const dias = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
+
+// Lógica de Oferta solicitada
 const REGRAS_OFERTA = {
     "2026/1": { "20261": [1], "20251": [2, 4, 6, 8] },
     "2026/2": { "20261": [2], "20251": [3, 5, 7] },
@@ -10,152 +25,56 @@ const REGRAS_OFERTA = {
     "2030/1": { "20261": [1, 3, 5, 7], "20251": [] },
 };
 
-const DB_KEY = 'UFMT_SISTEMA_V12';
-let disciplinas = [];
-let optativas = [];
-let grade = JSON.parse(localStorage.getItem(DB_KEY)) || {};
-let discSelecionada = null;
-
-const horarios = [
-    { id: "M1", label: "07:30 - 09:30" }, { id: "M2", label: "09:30 - 11:30" },
-    { id: "T1", label: "13:30 - 15:30" }, { id: "T2", label: "15:30 - 17:30" }
-];
-const dias = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
-
-function getColorSemestre(s) {
-    const cores = {
-        1: "#e3f2fd", 2: "#f1f8e9", 3: "#fff3e0", 4: "#f3e5f5",
-        5: "#efebe9", 6: "#e0f2f1", 7: "#fffde7", 8: "#ffebee"
-    };
-    return cores[s] || "#ffffff";
+function getColor(s) {
+    const cores = { 1: "#e3f2fd", 2: "#f1f8e9", 3: "#fff3e0", 4: "#f3e5f5", 5: "#efebe9", 6: "#e0f2f1", 7: "#fffde7", 8: "#ffebee" };
+    return cores[s] || "#f1f5f9";
 }
 
 async function carregarDados() {
     try {
         const resOb = await fetch('./data/disciplinas_obrigatorias.json?v=' + Date.now());
         disciplinas = await resOb.json();
-
         const resOpt = await fetch('./data/disciplinas_optativas.json?v=' + Date.now());
         optativas = await resOpt.json();
 
         const pSel = document.getElementById('periodoAtual');
         pSel.innerHTML = '';
-        Object.keys(REGRAS_OFERTA).forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = p; opt.textContent = p;
-            pSel.appendChild(opt);
-        });
+        Object.keys(REGRAS_OFERTA).forEach(p => pSel.innerHTML += `<option value="${p}">${p}</option>`);
 
         const sSel = document.getElementById('filtroSemestre');
         sSel.innerHTML = '';
-        for(let i=1; i<=8; i++) {
-            let opt = document.createElement('option');
-            opt.value = i; opt.textContent = i + "º Semestre";
-            sSel.appendChild(opt);
-        }
+        for(let i=1; i<=8; i++) sSel.innerHTML += `<option value="${i}">${i}º Semestre</option>`;
 
         popularDropdownOptativas();
-        salvarEAtualizar();
-    } catch (e) { console.error("Erro ao carregar arquivos JSON:", e); }
+        mudarFiltros();
+    } catch (e) { console.error("Erro ao carregar arquivos JSON."); }
 }
 
-function popularDropdownOptativas() {
-    const sel = document.getElementById('selectOptativas');
-    sel.innerHTML = '<option value="">-- Selecione uma Optativa --</option>';
-    optativas.sort((a,b) => a.nome.localeCompare(b.nome)).forEach(opt => {
-        const o = document.createElement('option');
-        o.value = opt.codigo;
-        o.textContent = `${opt.codigo} - ${opt.nome}`;
-        sel.appendChild(o);
-    });
-}
-
-function sincronizarInterface() {
-    const input = document.getElementById('inputEtiquetas');
-    const selVinc = document.getElementById('selectVinc');
-    if (!input || !selVinc) return;
-    const etiquetas = input.value.split(',').map(s => s.trim().toUpperCase()).filter(s => s !== '');
-    const valorSalvo = selVinc.value;
-    selVinc.innerHTML = '<option value="GERAL">Todas as Turmas (Geral)</option>';
-    etiquetas.forEach(et => {
-        const opt = document.createElement('option');
-        opt.value = et; opt.textContent = `Apenas Turma: ${et}`;
-        selVinc.appendChild(opt);
-    });
-    if ([...selVinc.options].some(o => o.value === valorSalvo)) selVinc.value = valorSalvo;
-}
-
-function selecionarDisciplina(d) {
-    discSelecionada = d;
-    document.getElementById('selectOptativas').value = "";
-    document.getElementById('formConfig').style.display = 'block';
-    document.getElementById('nomeDiscSelecionada').innerText = d.nome;
-    sincronizarInterface();
-    renderizarGrade();
-    carregarDisciplinas();
-}
-
-function selecionarOptativa(codigo) {
-    if(!codigo) return;
-    const disc = optativas.find(o => o.codigo === codigo);
-    if(disc) {
-        discSelecionada = disc;
-        document.getElementById('formConfig').style.display = 'block';
-        document.getElementById('nomeDiscSelecionada').innerText = `(OPTATIVA) ${disc.nome}`;
-        sincronizarInterface();
-        renderizarGrade();
-        carregarDisciplinas();
-    }
-}
-
-function alocarNaGrade(dia, horaId) {
-    if (!discSelecionada) return alert("Selecione uma disciplina.");
-    const periodo = document.getElementById('periodoAtual').value;
+// --- ATUALIZAÇÃO DA SIDEBAR (Só quando muda filtros no topo) ---
+function mudarFiltros() {
     const ppc = document.getElementById('filtroPPC').value;
     const sem = document.getElementById('filtroSemestre').value;
-    const etiquetas = document.getElementById('inputEtiquetas').value.split(',').map(s => s.trim().toUpperCase()).filter(s => s !== '');
-    const vinc = document.getElementById('selectVinc').value;
-    const prof = document.getElementById('profNome').value.trim() || "A definir";
-    const sala = document.getElementById('salaLocal').value.trim() || "S/N";
+    const container = document.getElementById('listaDisciplinas');
 
-    if (etiquetas.length === 0) return alert("Defina as turmas.");
+    container.innerHTML = '';
+    const filtradas = disciplinas.filter(d => (d[`ppc_${ppc}`] || d[`PPC_${ppc}`]) == sem);
 
-    const cellId = `${dia}-${horaId}`;
-
-    if (grade[cellId]) {
-        const conflitos = grade[cellId].filter(a => a.periodo === periodo);
-        for (let aula of conflitos) {
-            if (prof !== "A definir" && aula.prof === prof) {
-                if (!confirm(`O professor ${prof} já está alocado aqui em ${aula.nome}. Continuar?`)) return;
-            }
-            if (aula.ppc === ppc && aula.semestre == sem && aula.codigo !== discSelecionada.codigo) {
-                if (!confirm(`CHOQUE DE SEMESTRE: Alunos do ${sem}º semestre não podem cursar ${aula.nome} e ${discSelecionada.nome} ao mesmo tempo. Continuar?`)) return;
-            }
-            if (aula.codigo === discSelecionada.codigo) {
-                const turmasOcupadas = aula.vinc === 'GERAL' ? aula.snapshotEtiquetas : [aula.vinc];
-                const turmasNovas = vinc === 'GERAL' ? etiquetas : [vinc];
-                if (turmasNovas.find(t => turmasOcupadas.includes(t))) {
-                    if (!confirm(`Esta turma já possui aula desta disciplina neste horário. Continuar?`)) return;
-                }
-            }
-        }
-    }
-
-    if (!grade[cellId]) grade[cellId] = [];
-    grade[cellId].push({
-        uid: "UID-" + Math.random().toString(36).substr(2, 9),
-        codigo: discSelecionada.codigo,
-        nome: discSelecionada.nome,
-        vinc: vinc,
-        snapshotEtiquetas: etiquetas,
-        tipo: document.getElementById('tipoAula').value,
-        ppc: ppc,
-        periodo: periodo,
-        prof: prof,
-        sala: sala,
-        semestre: sem
+    filtradas.forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'card-disc-item';
+        div.setAttribute('draggable', true);
+        div.innerHTML = `<strong>${d.codigo}</strong><br>${d.nome}`;
+        div.ondragstart = () => { discSendoAlocada = d; };
+        container.appendChild(div);
     });
     salvarEAtualizar();
+}
+
+// --- ATUALIZAÇÃO DA GRADE (NÃO mexe na Sidebar) ---
+function salvarEAtualizar() {
+    localStorage.setItem(DB_KEY, JSON.stringify(grade));
+    renderizarGrade();
+    renderizarMatrizResumo();
 }
 
 function renderizarGrade() {
@@ -164,194 +83,314 @@ function renderizarGrade() {
     corpo.innerHTML = '';
     horarios.forEach(h => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="hora-label"><strong>${h.label}</strong></td>`;
+        tr.innerHTML = `<td style="background:#f8fafc; font-weight:bold; text-align:center; font-size:10px">${h.label}</td>`;
         dias.forEach(dia => {
             const cellId = `${dia}-${h.id}`;
             const td = document.createElement('td');
-            const container = document.createElement('div');
-            container.className = 'container-cards';
+            td.ondragover = (e) => { e.preventDefault(); td.classList.add('drag-over'); };
+            td.ondragleave = () => td.classList.remove('drag-over');
+            td.ondrop = (e) => { e.preventDefault(); td.classList.remove('drag-over'); cellSendoAlocada = cellId; abrirModal(); };
+
             if (grade[cellId]) {
                 grade[cellId].filter(a => a.periodo === periodo).forEach(aula => {
-                    const card = document.createElement('div');
-                    card.className = 'aula-box';
-                    card.style.backgroundColor = getColorSemestre(aula.semestre);
-                    card.style.borderLeft = "5px solid var(--primary)";
-                    const tags = aula.vinc === 'GERAL' ? aula.snapshotEtiquetas.join(', ') : aula.vinc;
-                    card.innerHTML = `
-                        <span class="turma-tag">${tags}</span>
-                        <strong>${aula.codigo}</strong>
-                        <div style="font-size:0.6rem;">${aula.nome}</div>
-                        <div onclick="editarAula('${cellId}', '${aula.uid}')" style="cursor:pointer; font-size:0.55rem; color:var(--primary); border-top:1px dashed #999; margin-top:3px;">
-                           Prof: ${aula.prof} <br> Sala: ${aula.sala}
+                    const box = document.createElement('div');
+                    box.className = 'aula-box';
+                    box.style.backgroundColor = getColor(aula.semestre);
+                    box.style.borderLeft = `5px solid var(--primary)`;
+                    box.innerHTML = `
+                        <span class="turma-tag">${aula.snapshotEtiquetas}</span>
+                        <div style="font-weight:bold; color:#003d79;">${aula.codigo} - ${aula.nome}</div>
+                        <div class="aula-info" onclick="editarAula('${cellId}','${aula.uid}')" style="cursor:pointer">
+                            P: ${aula.prof}<br>S: ${aula.sala} (${aula.tipo[0]})
                         </div>
-                        <button class="btn-del" onclick="removerAula('${cellId}', '${aula.uid}')">×</button>
+                        <button class="btn-del" onclick="removerAula('${cellId}','${aula.uid}')">×</button>
                     `;
-                    container.appendChild(card);
+                    td.appendChild(box);
                 });
             }
-            const btnAdd = document.createElement('button');
-            btnAdd.className = "btn-adicionar-vaga"; btnAdd.innerHTML = "+";
-            btnAdd.onclick = () => alocarNaGrade(dia, h.id);
-            td.appendChild(container); td.appendChild(btnAdd); tr.appendChild(td);
+            tr.appendChild(td);
         });
         corpo.appendChild(tr);
     });
 }
 
-function editarAula(cellId, uid) {
-    const aula = grade[cellId].find(a => a.uid === uid);
-    if (!aula) return;
-    const nP = prompt("Professor:", aula.prof);
-    if (nP !== null) aula.prof = nP.trim() || "A definir";
-    const nS = prompt("Sala:", aula.sala);
-    if (nS !== null) aula.sala = nS.trim() || "S/N";
-    salvarEAtualizar();
-}
+function confirmarAlocacao() {
+    const turmas = document.getElementById('editTurmas').value.trim();
+    if (!turmas) return alert("Informe a turma!");
+    const prof = document.getElementById('editProf').value || "A definir";
+    const sala = document.getElementById('editSala').value || "S/N";
+    const tipo = document.getElementById('editTipo').value;
+    const ppcAtivo = document.getElementById('filtroPPC').value;
+    const periodo = document.getElementById('periodoAtual').value;
 
-function removerAula(cellId, uid) {
-    grade[cellId] = grade[cellId].filter(a => a.uid !== uid);
-    salvarEAtualizar();
-}
+    const semDaDisciplina = discSendoAlocada[`ppc_${ppcAtivo}`] || discSendoAlocada[`PPC_${ppcAtivo}`];
 
-function carregarDisciplinas() {
-    const ppc = document.getElementById('filtroPPC').value;
-    const sem = document.getElementById('filtroSemestre').value;
-    const container = document.getElementById('listaDisciplinas');
-    container.innerHTML = '';
-    disciplinas.filter(d => d[`ppc_${ppc}`] == sem).forEach(d => {
-        const div = document.createElement('div');
-        div.className = `card-disc-item ${discSelecionada?.codigo === d.codigo ? 'active' : ''}`;
-        div.innerHTML = `<strong>${d.codigo}</strong><br><small>${d.nome}</small>`;
-        div.onclick = () => selecionarDisciplina(d);
-        container.appendChild(div);
+    // --- LÓGICA DE CHOQUES ---
+    const aulasNoSlot = (grade[cellSendoAlocada] || []).filter(a => a.periodo === periodo);
+
+    // 1. Choque de Semestre
+    const choqueSem = aulasNoSlot.find(a => a.ppc === ppcAtivo && a.semestre == semDaDisciplina && a.uid !== editandoAulaUid);
+    if (choqueSem) if (!confirm(`CHOQUE DE SEMESTRE: O ${semDaDisciplina}º semestre já tem aula de ${choqueSem.nome} aqui. Continuar?`)) return;
+
+    // 2. Choque de Professor
+    if (prof !== "A definir") {
+        for (let cid in grade) {
+            if (cid.includes(cellSendoAlocada.split('-')[1]) && cid.includes(cellSendoAlocada.split('-')[0])) {
+                const choqueProf = grade[cid].find(a => a.periodo === periodo && a.prof === prof && a.uid !== editandoAulaUid);
+                if (choqueProf) if (!confirm(`CHOQUE DE PROFESSOR: ${prof} já está alocado neste horário. Continuar?`)) return;
+            }
+        }
+    }
+
+    if (editandoAulaUid) grade[cellSendoAlocada] = grade[cellSendoAlocada].filter(a => a.uid !== editandoAulaUid);
+    if (!grade[cellSendoAlocada]) grade[cellSendoAlocada] = [];
+
+    grade[cellSendoAlocada].push({
+        uid: editandoAulaUid || "ID" + Date.now(),
+        codigo: discSendoAlocada.codigo,
+        nome: discSendoAlocada.nome,
+        prof, sala, tipo, periodo, ppc: ppcAtivo, semestre: semDaDisciplina,
+        snapshotEtiquetas: turmas
     });
+    fecharModal();
+    salvarEAtualizar();
 }
+
+function abrirModal() {
+    document.getElementById('modalAula').style.display = 'flex';
+    editandoAulaUid = null;
+    document.getElementById('modalTitle').innerText = "Configurar Aula";
+}
+function fecharModal() { document.getElementById('modalAula').style.display = 'none'; }
+
+function editarAula(cid, uid) {
+    const a = grade[cid].find(x => x.uid === uid);
+    discSendoAlocada = { codigo: a.codigo, nome: a.nome, [`ppc_${a.ppc}`]: a.semestre };
+    cellSendoAlocada = cid;
+    editandoAulaUid = uid;
+    document.getElementById('editProf').value = a.prof;
+    document.getElementById('editTurmas').value = a.snapshotEtiquetas;
+    document.getElementById('editSala').value = a.sala;
+    document.getElementById('editTipo').value = a.tipo;
+    document.getElementById('modalTitle').innerText = "Editar Aula";
+    document.getElementById('modalAula').style.display = 'flex';
+}
+
+function removerAula(cid, uid) { if(confirm("Remover?")) { grade[cid] = grade[cid].filter(a => a.uid !== uid); salvarEAtualizar(); } }
 
 function renderizarMatrizResumo() {
     const periodo = document.getElementById('periodoAtual').value;
     ['20251', '20261'].forEach(ppc => {
-        const container = document.getElementById(ppc === '20251' ? 'matriz2025' : 'matriz2026');
-        container.innerHTML = '';
-        if(!REGRAS_OFERTA[periodo] || !REGRAS_OFERTA[periodo][ppc]) return;
-        REGRAS_OFERTA[periodo][ppc].forEach(s => {
-            const col = document.createElement('div');
-            col.innerHTML = `<strong>${s}º Sem</strong>`;
-            disciplinas.filter(d => d[`ppc_${ppc}`] == s).forEach(d => {
+        const cont = document.getElementById('matriz-' + ppc);
+        if (!cont) return;
+        cont.innerHTML = `<div style="writing-mode: vertical-lr; font-weight:800; padding:10px; background:#003d79; color:#fff; display:flex; align-items:center; justify-content:center; border-radius:4px 0 0 4px">PPC ${ppc}</div>`;
+        const sems = REGRAS_OFERTA[periodo]?.[ppc] || [];
+        sems.forEach(s => {
+            const divSem = document.createElement('div');
+            divSem.className = 'col-semestre';
+            divSem.style.backgroundColor = getColor(s);
+            divSem.innerHTML = `<div style="font-weight:bold; border-bottom:1px solid #ccc; margin-bottom:5px; color:#003d79">${s}º Sem</div>`;
+            disciplinas.filter(d => (d[`ppc_${ppc}`] || d[`PPC_${ppc}`]) == s).forEach(d => {
                 const ok = Object.values(grade).some(slot => slot.some(a => a.codigo === d.codigo && a.periodo === periodo));
-                col.innerHTML += `<div class="item-resumo ${ok?'ok':''}">${d.nome.substring(0,20)} ${ok?'✅':''}</div>`;
+                divSem.innerHTML += `<div class="item-matriz" style="color:${ok?'#059669':'#64748b'}">${ok?'✅':'❌'} ${d.nome.substring(0,18)}</div>`;
             });
-            container.appendChild(col);
+            cont.appendChild(divSem);
         });
     });
 }
 
-function salvarEAtualizar() {
-    localStorage.setItem(DB_KEY, JSON.stringify(grade));
-    renderizarGrade(); carregarDisciplinas(); renderizarMatrizResumo();
+function popularDropdownOptativas() {
+    const sel = document.getElementById('selectOptativas');
+    sel.innerHTML = '<option value="">-- Escolha --</option>';
+    optativas.sort((a,b) => a.nome.localeCompare(b.nome)).forEach(o => sel.innerHTML += `<option value="${o.codigo}">${o.nome}</option>`);
 }
+
+function selecionarOptativa(cod) { if(!cod) return; discSendoAlocada = optativas.find(o => o.codigo === cod); }
 
 function exportarJSON() {
     const blob = new Blob([JSON.stringify(grade, null, 2)], {type : 'application/json'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'grade_ufmt.json'; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'grade.json'; a.click();
 }
 
 function exportarExcel() {
     const periodo = document.getElementById('periodoAtual').value;
-    const dados = [["Dia", "Horário", "Código", "Disciplina", "Professor", "Sala", "Turma", "Semestre", "PPC"]];
-    Object.keys(grade).forEach(cellId => {
-        const [dia, horaId] = cellId.split('-');
-        grade[cellId].filter(a => a.periodo === periodo).forEach(a => {
-            dados.push([dia, horaId, a.codigo, a.nome, a.prof, a.sala, a.vinc, a.semestre, a.ppc]);
+    // ADICIONADO "Tipo" NO CABEÇALHO ABAIXO
+    const dados = [["Dia", "Horário", "Código", "Disciplina", "Tipo", "Professor", "Sala", "Turma"]];
+    Object.keys(grade).forEach(cid => {
+        const [dia, hora] = cid.split('-');
+        grade[cid].filter(a => a.periodo === periodo).forEach(a => {
+            // ADICIONADO a.tipo NA ARRAY ABAIXO
+            dados.push([dia, hora, a.codigo, a.nome, a.tipo, a.prof, a.sala, a.snapshotEtiquetas]);
         });
     });
     const ws = XLSX.utils.aoa_to_sheet(dados);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Grade");
-    XLSX.writeFile(wb, `Grade_${periodo.replace("/","-")}.xlsx`);
+    XLSX.writeFile(wb, "Grade_UFMT.xlsx");
 }
 
 function importarJSON(input) {
     const reader = new FileReader();
-    reader.onload = (e) => { grade = JSON.parse(e.target.result); salvarEAtualizar(); };
+    reader.onload = (e) => { grade = JSON.parse(e.target.result); mudarFiltros(); };
     reader.readAsText(input.files[0]);
 }
-
 function imprimirRelatorioCompleto() {
     const periodo = document.getElementById('periodoAtual').value;
-    const relatorio = {};
-
-    Object.keys(grade).forEach(cellId => {
-        const [dia, horaId] = cellId.split('-');
-        const hor = horarios.find(h => h.id === horaId)?.label || horaId;
-
-        grade[cellId].filter(a => a.periodo === periodo).forEach(aula => {
-            if (!relatorio[aula.ppc]) relatorio[aula.ppc] = {};
-            if (!relatorio[aula.ppc][aula.semestre]) relatorio[aula.ppc][aula.semestre] = {};
-
-            const chaveDisc = `${aula.codigo} - ${aula.nome}`;
-            if (!relatorio[aula.ppc][aula.semestre][chaveDisc]) {
-                relatorio[aula.ppc][aula.semestre][chaveDisc] = [];
-            }
-
-            relatorio[aula.ppc][aula.semestre][chaveDisc].push({
-                dia, horario: hor, horaId: horaId, ...aula
-            });
+    const rel = {};
+    Object.keys(grade).forEach(cid => {
+        const [dia, horaId] = cid.split('-');
+        const hLabel = horarios.find(h => h.id === horaId).label;
+        grade[cid].filter(a => a.periodo === periodo).forEach(a => {
+            if(!rel[a.ppc]) rel[a.ppc] = {};
+            if(!rel[a.ppc][a.semestre]) rel[a.ppc][a.semestre] = [];
+            rel[a.ppc][a.semestre].push({...a, dia, hLabel});
         });
     });
 
-    const jan = window.open('', '', 'width=1300,height=900');
+    const win = window.open('', '', 'width=1100,height=850');
+    let h = `<html><head><style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ccc; padding: 8px; font-size: 11px; text-align: left; }
+        th { background: #003d79; color: white; }
+    </style></head><body><h1>Relatório UFMT - ${periodo}</h1>`;
 
-    let html = `<html><head><title>Relatório UFMT - ${periodo}</title><style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
-        @page { size: landscape; margin: 1.5cm; }
-        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; color: #1e293b; background: #fff; }
-        .header-print { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #003d79; padding-bottom: 10px; }
-        .header-print h1 { margin: 0; color: #003d79; font-size: 24pt; text-transform: uppercase; }
-        .ppc-banner { background: #003d79; color: white; padding: 12px 20px; font-size: 16pt; font-weight: 800; border-radius: 4px; margin-bottom: 20px; }
-        .semestre-header { background: #f1f5f9; padding: 10px 20px; font-size: 13pt; font-weight: 800; color: #003d79; border-left: 8px solid #003d79; margin-bottom: 15px; }
-        .disciplina-card { margin: 0 0 20px 20px; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
-        .disciplina-title { background: #f8fafc; padding: 12px 15px; font-size: 11pt; font-weight: 700; border-bottom: 1px solid #cbd5e1; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #f1f5f9; color: #475569; font-size: 9pt; text-transform: uppercase; padding: 12px 15px; text-align: left; border-bottom: 2px solid #cbd5e1; }
-        td { padding: 12px 15px; font-size: 10.5pt; border-bottom: 1px solid #e2e8f0; }
-        .turma-pill { background: #1e293b; color: white; padding: 4px 8px; border-radius: 4px; font-size: 9pt; font-weight: 800; }
-        .no-print-btn { position: fixed; top: 20px; right: 20px; padding: 12px 24px; background: #003d79; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; z-index: 10000; }
-        @media print { .no-print-btn { display: none; } .ppc-section { page-break-after: always; } }
-    </style></head><body>`;
-
-    html += `<button class="no-print-btn" onclick="window.print()">🖨️ GERAR RELATÓRIO PDF</button>`;
-    html += `<div class="header-print"><h1>Universidade Federal de Mato Grosso</h1><p>Planejamento de Oferta Acadêmica - Período: ${periodo}</p></div>`;
-
-    const ordemDias = { "Segunda": 1, "Terça": 2, "Quarta": 3, "Quinta": 4, "Sexta": 5 };
-
-    Object.keys(relatorio).sort().forEach(ppcId => {
-        const nomePPC = ppcId === '20261' ? "PPC NOVO (Currículo 2026/1)" : "PPC ANTIGO (Currículo 2025/1)";
-        html += `<div class="ppc-section"><div class="ppc-banner">${nomePPC}</div>`;
-
-        Object.keys(relatorio[ppcId]).sort((a,b) => a-b).forEach(sem => {
-            html += `<div class="semestre-header">${sem}º SEMESTRE</div>`;
-            Object.keys(relatorio[ppcId][sem]).sort().forEach(discKey => {
-                const aulas = relatorio[ppcId][sem][discKey];
-                html += `<div class="disciplina-card"><div class="disciplina-title" style="border-left: 12px solid ${getColorSemestre(sem)}">${discKey}</div>
-                <table><thead><tr><th>Dia / Horário</th><th>Tipo</th><th>Turma(s)</th><th>Professor</th><th>Sala</th></tr></thead><tbody>`;
-
-                aulas.sort((a, b) => {
-                    if (ordemDias[a.dia] !== ordemDias[b.dia]) return ordemDias[a.dia] - ordemDias[b.dia];
-                    return a.horaId.localeCompare(b.horaId);
-                }).forEach(a => {
-                    const turmas = a.vinc === 'GERAL' ? a.snapshotEtiquetas.join(', ') : a.vinc;
-                    html += `<tr><td><strong>${a.dia}</strong> às ${a.horario}</td><td>${a.tipo}</td><td><span class="turma-pill">${turmas}</span></td><td>Prof: ${a.prof}</td><td>Sala: ${a.sala}</td></tr>`;                });
-                html += `</tbody></table></div>`;
+    Object.keys(rel).sort().forEach(ppc => {
+        h += `<h2>PPC ${ppc}</h2>`;
+        Object.keys(rel[ppc]).sort().forEach(sem => {
+            // ADICIONADO TH "TIPO" ABAIXO
+            h += `<h3>${sem}º Semestre</h3><table><tr><th>Dia</th><th>Hora</th><th>Código</th><th>Disciplina</th><th>Tipo</th><th>Prof</th><th>Sala</th><th>Turma</th></tr>`;
+            rel[ppc][sem].forEach(a => {
+                // ADICIONADO TD "${a.tipo}" ABAIXO
+                h += `<tr><td>${a.dia}</td><td>${a.hLabel}</td><td>${a.codigo}</td><td>${a.nome}</td><td>${a.tipo}</td><td>${a.prof}</td><td>${a.sala}</td><td>${a.snapshotEtiquetas}</td></tr>`;
             });
+            h += `</table>`;
         });
-        html += `</div>`;
     });
-
-    html += `</body></html>`;
-    jan.document.write(html);
-    jan.document.close();
+    h += `<script>window.print();</script></body></html>`;
+    win.document.write(h); win.document.close();
 }
 
-function resetAbsoluto() { if(confirm("Apagar tudo?")) { localStorage.clear(); location.reload(); } }
+
+// --- LÓGICA DE PROCESSAMENTO DE ENCARGOS (DETALHADA) ---
+function processarDadosDocentes() {
+    const periodo = document.getElementById('periodoAtual').value;
+    const docentes = {};
+
+    Object.keys(grade).forEach(cid => {
+        grade[cid].filter(a => a.periodo === periodo).forEach(aula => {
+            const prof = aula.prof || "A definir";
+            if (prof === "A definir") return;
+
+            if (!docentes[prof]) {
+                docentes[prof] = {
+                    totalSlots: 0,
+                    atividades: [] // Agora guardamos objetos detalhados
+                };
+            }
+
+            docentes[prof].totalSlots += 1;
+
+            // Verifica se essa atividade exata já foi adicionada para não duplicar no relatório
+            const jaExiste = docentes[prof].atividades.find(at =>
+                at.codigo === aula.codigo &&
+                at.tipo === aula.tipo &&
+                at.turmas === aula.snapshotEtiquetas
+            );
+
+            if (!jaExiste) {
+                docentes[prof].atividades.push({
+                    codigo: aula.codigo,
+                    nome: aula.nome,
+                    tipo: aula.tipo,
+                    turmas: aula.snapshotEtiquetas
+                });
+            }
+        });
+    });
+
+    return Object.keys(docentes).sort().map(nome => {
+        const hSemanais = docentes[nome].totalSlots * 2;
+        return {
+            nome: nome,
+            hSemanais: hSemanais,
+            hTotalEncargo: hSemanais * 2.5,
+            atividades: docentes[nome].atividades
+        };
+    });
+}
+
+// --- RELATÓRIO PDF DE ENCARGOS ---
+function imprimirRelatorioEncargos() {
+    const periodo = document.getElementById('periodoAtual').value;
+    const dados = processarDadosDocentes();
+
+    const win = window.open('', '', 'width=1100,height=850');
+    let h = `<html><head><title>Relatório de Encargos</title><style>
+        body { font-family: sans-serif; padding: 30px; color: #1e293b; }
+        h1 { color: #003d79; border-bottom: 2px solid #003d79; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #cbd5e1; padding: 10px; font-size: 11px; text-align: left; }
+        th { background: #003d79; color: white; }
+        .h-destaque { font-weight: bold; color: #003d79; background: #f1f5f9; }
+        .item-atv { padding: 4px 0; border-bottom: 1px dashed #eee; }
+    </style></head><body>
+    <h1>UFMT - Relatório de Encargos Docentes (${periodo})</h1>
+    <table>
+        <tr>
+            <th>Professor</th>
+            <th>H/S (Semanais)</th>
+            <th>Total Encargo (x2.5)</th>
+            <th>Detalhamento de Disciplinas / Turmas</th>
+        </tr>`;
+
+    dados.forEach(d => {
+        const listaAtv = d.atividades.map(at =>
+            `<div class="item-atv">${at.codigo} - ${at.nome} | <strong>${at.tipo}</strong> (${at.turmas})</div>`
+        ).join('');
+
+        h += `<tr>
+            <td><strong>${d.nome}</strong></td>
+            <td class="h-destaque">${d.hSemanais}h</td>
+            <td class="h-destaque">${d.hTotalEncargo}h</td>
+            <td>${listaAtv}</td>
+        </tr>`;
+    });
+
+    h += `</table><script>window.print();</script></body></html>`;
+    win.document.write(h);
+    win.document.close();
+}
+
+// --- EXPORTAR EXCEL DE ENCARGOS (CADA DISCIPLINA EM UMA LINHA) ---
+function exportarEncargosExcel() {
+    const periodo = document.getElementById('periodoAtual').value;
+    const dados = processarDadosDocentes();
+
+    const rows = [["Professor", "H/S Total", "Encargo Total (x2.5)", "Código", "Disciplina", "Tipo", "Turmas"]];
+
+    dados.forEach(d => {
+        d.atividades.forEach((at, index) => {
+            // Se for a primeira atividade do professor, preenchemos o nome e horas totais.
+            // Se forem as atividades seguintes, deixamos em branco para ficar visualmente limpo.
+            rows.push([
+                index === 0 ? d.nome : "",
+                index === 0 ? d.hSemanais : "",
+                index === 0 ? d.hTotalEncargo : "",
+                at.codigo,
+                at.nome,
+                at.tipo,
+                at.turmas
+            ]);
+        });
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Encargos");
+    XLSX.writeFile(wb, `Encargos_Docentes_${periodo.replace('/','-')}.xlsx`);
+}
+
+function resetAbsoluto() { if(confirm("Limpar tudo?")) { localStorage.clear(); location.reload(); } }
 
 carregarDados();
