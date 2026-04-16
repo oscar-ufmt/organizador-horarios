@@ -215,36 +215,95 @@ function renderizarMatrizResumo() {
         });
     });
 }
-
-// Funções de encargos e relatórios permanecem iguais às suas originais
 function processarDadosDocentes() {
     const periodo = document.getElementById('periodoAtual').value;
     const docentes = {};
+
     Object.keys(grade).forEach(cid => {
         grade[cid].filter(a => a.periodo === periodo).forEach(aula => {
             const prof = aula.prof || "A definir";
             if (prof === "A definir") return;
-            if (!docentes[prof]) { docentes[prof] = { totalSlots: 0, atividades: [] }; }
+
+            if (!docentes[prof]) {
+                docentes[prof] = { totalSlots: 0, atividades: {} };
+            }
+
+            // Cada slot no grid equivale a 2h semanais
             docentes[prof].totalSlots += 1;
-            const jaExiste = docentes[prof].atividades.find(at => at.codigo === aula.codigo && at.tipo === aula.tipo && at.turmas === aula.snapshotEtiquetas);
-            if (!jaExiste) { docentes[prof].atividades.push({ codigo: aula.codigo, nome: aula.nome, tipo: aula.tipo, turmas: aula.snapshotEtiquetas }); }
+
+            // Chave para agrupar: Mesma Disciplina + Mesmo Tipo + Mesmas Turmas
+            // Isso garante que se EC1 e EC2 estão juntas na Teoria, fiquem numa linha.
+            // Se a Prática for separada, gerará outra linha.
+            const chaveAtividade = `${aula.codigo}-${aula.tipo}-${aula.snapshotEtiquetas}`;
+
+            if (!docentes[prof].atividades[chaveAtividade]) {
+                docentes[prof].atividades[chaveAtividade] = {
+                    codigo: aula.codigo,
+                    nome: aula.nome,
+                    tipo: aula.tipo,
+                    turmas: aula.snapshotEtiquetas,
+                    hAtividade: 0
+                };
+            }
+            docentes[prof].atividades[chaveAtividade].hAtividade += 2;
         });
     });
+
     return Object.keys(docentes).sort().map(nome => {
         const hSemanais = docentes[nome].totalSlots * 2;
-        return { nome: nome, hSemanais: hSemanais, hTotalEncargo: hSemanais * 2.5, atividades: docentes[nome].atividades };
+
+        // Transformar objeto em array e ORDENAR as disciplinas do professor
+        const listaAtividades = Object.values(docentes[nome].atividades).sort((a, b) => {
+            // 1º Ordena por Nome da Disciplina
+            if (a.nome !== b.nome) return a.nome.localeCompare(b.nome);
+            // 2º Ordena por Tipo (Teoria antes de Prática - T vem depois de P, então invertemos)
+            return b.tipo.localeCompare(a.tipo);
+        });
+
+        return {
+            nome: nome,
+            hSemanais: hSemanais,
+            hTotalEncargo: hSemanais * 2.5,
+            atividades: listaAtividades
+        };
     });
 }
-
 function imprimirRelatorioEncargos() {
     const periodo = document.getElementById('periodoAtual').value;
     const dados = processarDadosDocentes();
     const win = window.open('', '', 'width=1100,height=850');
-    let h = `<html><head><style>body{font-family:sans-serif;padding:30px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #ccc;padding:8px;font-size:11px}th{background:#003d79;color:white}.h-destaque{font-weight:bold;background:#f1f5f9}.item-atv{padding:4px 0;border-bottom:1px dashed #eee}</style></head><body><h1>Relatório Encargos - ${periodo}</h1><table><tr><th>Professor</th><th>H/S</th><th>Encargo (x2.5)</th><th>Disciplinas</th></tr>`;
+
+    let h = `<html><head><style>
+        body{font-family:sans-serif;padding:30px;color:#333}
+        table{width:100%;border-collapse:collapse;margin-top:10px}
+        th,td{border:1px solid #ccc;padding:10px;font-size:12px;text-align:left}
+        th{background:#003d79;color:white;text-transform:uppercase}
+        tr:nth-child(even){background:#f9f9f9}
+        .item-atv{margin-bottom:4px; padding:2px 0}
+        .tag-tipo{font-weight:bold; color:#003d79; background:#e2e8f0; padding:2px 4px; border-radius:3px; font-size:10px}
+        .tag-turma{color:#c53030; font-weight:bold}
+    </style></head><body>`;
+
+    h += `<h1>Relatório de Encargos Docentes - ${periodo}</h1>`;
+    h += `<table><tr><th width="25%">Professor</th><th width="10%">H/S</th><th width="15%">Encargo (x2.5)</th><th>Disciplinas e Turmas</th></tr>`;
+
     dados.forEach(d => {
-        const listaAtv = d.atividades.map(at => `<div class="item-atv">${at.codigo} - ${at.nome} | <strong>${at.tipo}</strong> (${at.turmas})</div>`).join('');
-        h += `<tr><td><strong>${d.nome}</strong></td><td>${d.hSemanais}h</td><td>${d.hTotalEncargo}h</td><td>${listaAtv}</td></tr>`;
+        const listaAtv = d.atividades.map(at => `
+            <div class="item-atv">
+                ${at.nome} <span class="tag-turma">${at.turmas}</span> 
+                <span class="tag-tipo">${at.tipo}</span> 
+                <small style="color:#666">(${at.codigo})</small>
+            </div>
+        `).join('');
+
+        h += `<tr>
+            <td><strong>${d.nome}</strong></td>
+            <td>${d.hSemanais}h</td>
+            <td>${d.hTotalEncargo}h</td>
+            <td>${listaAtv}</td>
+        </tr>`;
     });
+
     h += `</table><script>window.print();</script></body></html>`;
     win.document.write(h); win.document.close();
 }
@@ -293,10 +352,10 @@ function importarJSON(input) {
     reader.onload = (e) => { grade = JSON.parse(e.target.result); mudarFiltros(); };
     reader.readAsText(input.files[0]);
 }
-
 function imprimirRelatorioCompleto() {
     const periodo = document.getElementById('periodoAtual').value;
     const rel = {};
+
     Object.keys(grade).forEach(cid => {
         const [dia, horaId] = cid.split('-');
         const hLabel = horarios.find(h => h.id === horaId).label;
@@ -306,16 +365,45 @@ function imprimirRelatorioCompleto() {
             rel[a.ppc][a.semestre].push({...a, dia, hLabel});
         });
     });
+
     const win = window.open('', '', 'width=1100,height=850');
-    let h = `<html><head><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #ccc;padding:8px;font-size:11px}th{background:#003d79;color:white}</style></head><body><h1>Relatório UFMT - ${periodo}</h1>`;
+    let h = `<html><head><style>
+        body{font-family:sans-serif;padding:20px}
+        table{width:100%;border-collapse:collapse;margin-bottom:30px}
+        th,td{border:1px solid #ccc;padding:6px;font-size:11px}
+        th{background:#003d79;color:white}
+        h2{background:#eee;padding:10px;border-left:5px solid #003d79}
+    </style></head><body><h1>Relatório Geral de Turmas - ${periodo}</h1>`;
+
     Object.keys(rel).sort().forEach(ppc => {
-        h += `<h2>PPC ${ppc}</h2>`;
-        Object.keys(rel[ppc]).sort().forEach(sem => {
-            h += `<h3>${sem}º Semestre</h3><table><tr><th>Dia</th><th>Hora</th><th>Código</th><th>Disciplina</th><th>Tipo</th><th>Prof</th><th>Sala</th><th>Turma</th></tr>`;
-            rel[ppc][sem].forEach(a => { h += `<tr><td>${a.dia}</td><td>${a.hLabel}</td><td>${a.codigo}</td><td>${a.nome}</td><td>${a.tipo}</td><td>${a.prof}</td><td>${a.sala}</td><td>${a.snapshotEtiquetas}</td></tr>`; });
+        h += `<h2>PPC: ${ppc}</h2>`;
+        Object.keys(rel[ppc]).sort((a,b) => a-b).forEach(sem => {
+            h += `<h3>${sem}º Semestre</h3>
+            <table>
+                <tr><th>Disciplina</th><th>Tipo</th><th>Turma</th><th>Professor</th><th>Dia</th><th>Horário</th><th>Sala</th></tr>`;
+
+            // ORDENAÇÃO: Nome da Disciplina -> Tipo -> Dia
+            rel[ppc][sem].sort((a, b) => {
+                if (a.nome !== b.nome) return a.nome.localeCompare(b.nome);
+                if (a.tipo !== b.tipo) return b.tipo.localeCompare(a.tipo); // Teoria antes
+                return a.dia.localeCompare(b.dia);
+            });
+
+            rel[ppc][sem].forEach(a => {
+                h += `<tr>
+                    <td><strong>${a.nome}</strong><br><small>${a.codigo}</small></td>
+                    <td>${a.tipo}</td>
+                    <td style="color:red; font-weight:bold">${a.snapshotEtiquetas}</td>
+                    <td>${a.prof || "A definir"}</td>
+                    <td>${a.dia}</td>
+                    <td>${a.hLabel}</td>
+                    <td>${a.sala || "-"}</td>
+                </tr>`;
+            });
             h += `</table>`;
         });
     });
+
     h += `<script>window.print();</script></body></html>`;
     win.document.write(h); win.document.close();
 }
