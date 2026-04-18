@@ -1,413 +1,504 @@
-const DB_KEY = 'UFMT_SISTEMA_V12';
-let disciplinas = [];
-let optativas = [];
-let grade = JSON.parse(localStorage.getItem(DB_KEY)) || {};
-let discSendoAlocada = null;
-let cellSendoAlocada = null;
-let editandoAulaUid = null;
+const { createApp } = Vue;
 
-const horarios = [
-    { id: "M1", label: "07:30 - 09:30" }, { id: "M2", label: "09:30 - 11:30" },
-    { id: "T1", label: "13:30 - 15:30" }, { id: "T2", label: "15:30 - 17:30" }
-];
-const dias = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
-
-const REGRAS_OFERTA = {
-    "2026/1": { "20261": [1], "20251": [2, 4, 6, 8] },
-    "2026/2": { "20261": [2], "20251": [3, 5, 7] },
-    "2027/1": { "20261": [1, 3], "20251": [4, 6, 8] },
-    "2027/2": { "20261": [2, 4], "20251": [5, 7] },
-    "2028/1": { "20261": [1, 3, 5], "20251": [6, 8] },
-    "2028/2": { "20261": [2, 4, 6], "20251": [7] },
-    "2029/1": { "20261": [1, 3, 5, 7], "20251": [8] },
-    "2029/2": { "20261": [2, 4, 6, 8], "20251": [] },
-    "2030/1": { "20261": [1, 3, 5, 7], "20251": [] },
-};
-
-function getColor(s) {
-    const cores = { 1: "#e3f2fd", 2: "#f1f8e9", 3: "#fff3e0", 4: "#f3e5f5", 5: "#efebe9", 6: "#e0f2f1", 7: "#fffde7", 8: "#ffebee" };
-    return cores[s] || "#f1f5f9";
-}
-
-async function carregarDados() {
-    try {
-        const resOb = await fetch('./data/disciplinas_obrigatorias.json?v=' + Date.now());
-        disciplinas = await resOb.json();
-        const resOpt = await fetch('./data/disciplinas_optativas.json?v=' + Date.now());
-        optativas = await resOpt.json();
-
-        const pSel = document.getElementById('periodoAtual');
-        Object.keys(REGRAS_OFERTA).forEach(p => pSel.innerHTML += `<option value="${p}">${p}</option>`);
-
-        const sSel = document.getElementById('filtroSemestre');
-        for(let i=1; i<=8; i++) sSel.innerHTML += `<option value="${i}">${i}º Semestre</option>`;
-
-        popularDropdownOptativas();
-        mudarFiltros();
-    } catch (e) { alert("Erro ao carregar dados."); }
-}
-
-function mudarFiltros() {
-    carregarListaSidebar();
-    salvarEAtualizar();
-}
-
-function salvarEAtualizar() {
-    localStorage.setItem(DB_KEY, JSON.stringify(grade));
-    renderizarGrade();
-    renderizarMatrizResumo();
-}
-
-function carregarListaSidebar() {
-    const ppc = document.getElementById('filtroPPC').value;
-    const sem = document.getElementById('filtroSemestre').value;
-    const container = document.getElementById('listaDisciplinas');
-    container.innerHTML = '';
-
-    const filtradas = disciplinas.filter(d => (d[`ppc_${ppc}`] || d[`PPC_${ppc}`]) == sem);
-
-    filtradas.forEach(d => {
-        const div = document.createElement('div');
-        div.className = 'card-disc-item';
-        div.setAttribute('draggable', true);
-        div.innerHTML = `<strong>${d.codigo}</strong><br>${d.nome}`;
-
-        // Logica para Desktop (Arrastar)
-        div.ondragstart = () => { discSendoAlocada = d; };
-
-        // Lógica para Tablet (Clique para selecionar)
-        div.onclick = (e) => {
-            document.querySelectorAll('.card-disc-item').forEach(el => el.classList.remove('selected'));
-            div.classList.add('selected');
-            discSendoAlocada = d;
-        };
-
-        container.appendChild(div);
-    });
-}
-
-function renderizarGrade() {
-    const corpo = document.getElementById('corpoTabela');
-    const periodo = document.getElementById('periodoAtual').value;
-    corpo.innerHTML = '';
-    horarios.forEach(h => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td style="background:#f8fafc; font-weight:bold; text-align:center; font-size:10px">${h.label}</td>`;
-        dias.forEach(dia => {
-            const cellId = `${dia}-${h.id}`;
-            const td = document.createElement('td');
-
-            // Eventos de Drop (Desktop)
-            td.ondragover = (e) => { e.preventDefault(); td.classList.add('drag-over'); };
-            td.ondragleave = () => td.classList.remove('drag-over');
-            td.ondrop = (e) => {
-                e.preventDefault();
-                td.classList.remove('drag-over');
-                cellSendoAlocada = cellId;
-                abrirModal();
-            };
-
-            // Evento de Clique (Tablet)
-            td.onclick = () => {
-                if (discSendoAlocada) {
-                    cellSendoAlocada = cellId;
-                    abrirModal();
-                }
-            };
-
-            if (grade[cellId]) {
-                grade[cellId].filter(a => a.periodo === periodo).forEach(aula => {
-                    const box = document.createElement('div');
-                    box.className = 'aula-box';
-                    box.style.backgroundColor = getColor(aula.semestre);
-                    box.style.borderLeft = `5px solid var(--primary)`;
-                    box.innerHTML = `
-                        <span class="turma-tag">${aula.snapshotEtiquetas}</span>
-                        <div style="font-weight:bold; color:#003d79;">${aula.codigo} - ${aula.nome}</div>
-                        <div class="aula-info" onclick="event.stopPropagation(); editarAula('${cellId}','${aula.uid}')" style="cursor:pointer">
-                            P: ${aula.prof}<br>S: ${aula.sala} (${aula.tipo[0]})
-                        </div>
-                        <button class="btn-del" onclick="event.stopPropagation(); removerAula('${cellId}','${aula.uid}')">×</button>
-                    `;
-                    td.appendChild(box);
-                });
-            }
-            tr.appendChild(td);
-        });
-        corpo.appendChild(tr);
-    });
-}
-
-function confirmarAlocacao() {
-    const turmas = document.getElementById('editTurmas').value.trim();
-    if (!turmas) return alert("Informe a turma!");
-    const prof = document.getElementById('editProf').value || "A definir";
-    const sala = document.getElementById('editSala').value || "S/N";
-    const tipo = document.getElementById('editTipo').value;
-    const ppcAtivo = document.getElementById('filtroPPC').value;
-    const periodo = document.getElementById('periodoAtual').value;
-
-    const semDaDisciplina = discSendoAlocada[`ppc_${ppcAtivo}`] || discSendoAlocada[`PPC_${ppcAtivo}`];
-
-    // Choque de Semestre
-    const aulasNoSlot = (grade[cellSendoAlocada] || []).filter(a => a.periodo === periodo);
-    const choque = aulasNoSlot.find(a => a.ppc === ppcAtivo && a.semestre == semDaDisciplina && a.uid !== editandoAulaUid);
-    if (choque) if (!confirm(`CHOQUE: O ${semDaDisciplina}º semestre já tem aula de ${choque.nome} aqui. Continuar?`)) return;
-
-    if (editandoAulaUid) grade[cellSendoAlocada] = grade[cellSendoAlocada].filter(a => a.uid !== editandoAulaUid);
-    if (!grade[cellSendoAlocada]) grade[cellSendoAlocada] = [];
-
-    grade[cellSendoAlocada].push({
-        uid: editandoAulaUid || "ID" + Date.now(),
-        codigo: discSendoAlocada.codigo,
-        nome: discSendoAlocada.nome,
-        prof, sala, tipo, periodo, ppc: ppcAtivo, semestre: semDaDisciplina,
-        snapshotEtiquetas: turmas
-    });
-
-    // Limpa a seleção do tablet após alocar
-    discSendoAlocada = null;
-    document.querySelectorAll('.card-disc-item').forEach(el => el.classList.remove('selected'));
-
-    fecharModal();
-    salvarEAtualizar();
-}
-
-function abrirModal() {
-    document.getElementById('modalAula').style.display = 'flex';
-    editandoAulaUid = null;
-    document.getElementById('modalTitle').innerText = "Configurar Aula";
-}
-function fecharModal() { document.getElementById('modalAula').style.display = 'none'; }
-
-function editarAula(cid, uid) {
-    const a = grade[cid].find(x => x.uid === uid);
-    discSendoAlocada = { codigo: a.codigo, nome: a.nome, [`ppc_${a.ppc}`]: a.semestre };
-    cellSendoAlocada = cid;
-    editandoAulaUid = uid;
-    document.getElementById('editProf').value = a.prof;
-    document.getElementById('editTurmas').value = a.snapshotEtiquetas;
-    document.getElementById('editSala').value = a.sala;
-    document.getElementById('editTipo').value = a.tipo;
-    document.getElementById('modalTitle').innerText = "Editar Aula";
-    document.getElementById('modalAula').style.display = 'flex';
-}
-
-function removerAula(cid, uid) { if(confirm("Remover?")) { grade[cid] = grade[cid].filter(a => a.uid !== uid); salvarEAtualizar(); } }
-
-function renderizarMatrizResumo() {
-    const periodo = document.getElementById('periodoAtual').value;
-    ['20251', '20261'].forEach(ppc => {
-        const cont = document.getElementById('matriz-' + ppc);
-        if (!cont) return;
-        cont.innerHTML = `<div style="writing-mode: vertical-lr; font-weight:800; padding:10px; background:#003d79; color:#fff; display:flex; align-items:center; justify-content:center; border-radius:4px 0 0 4px">PPC ${ppc}</div>`;
-        const sems = REGRAS_OFERTA[periodo]?.[ppc] || [];
-        sems.forEach(s => {
-            const divSem = document.createElement('div');
-            divSem.className = 'col-semestre';
-            divSem.style.backgroundColor = getColor(s);
-            divSem.innerHTML = `<div style="font-weight:bold; border-bottom:1px solid #ccc; margin-bottom:5px; color:#003d79">${s}º Sem</div>`;
-            disciplinas.filter(d => (d[`ppc_${ppc}`] || d[`PPC_${ppc}`]) == s).forEach(d => {
-                const ok = Object.values(grade).some(slot => slot.some(a => a.codigo === d.codigo && a.periodo === periodo));
-                divSem.innerHTML += `<div class="item-matriz" style="color:${ok?'#059669':'#64748b'}">${ok?'✅':'❌'} ${d.nome.substring(0,18)}</div>`;
-            });
-            cont.appendChild(divSem);
-        });
-    });
-}
-function processarDadosDocentes() {
-    const periodo = document.getElementById('periodoAtual').value;
-    const docentes = {};
-
-    Object.keys(grade).forEach(cid => {
-        grade[cid].filter(a => a.periodo === periodo).forEach(aula => {
-            const prof = aula.prof || "A definir";
-            if (prof === "A definir") return;
-
-            if (!docentes[prof]) {
-                docentes[prof] = { totalSlots: 0, atividades: {} };
-            }
-
-            // Cada slot no grid equivale a 2h semanais
-            docentes[prof].totalSlots += 1;
-
-            // Chave para agrupar: Mesma Disciplina + Mesmo Tipo + Mesmas Turmas
-            // Isso garante que se EC1 e EC2 estão juntas na Teoria, fiquem numa linha.
-            // Se a Prática for separada, gerará outra linha.
-            const chaveAtividade = `${aula.codigo}-${aula.tipo}-${aula.snapshotEtiquetas}`;
-
-            if (!docentes[prof].atividades[chaveAtividade]) {
-                docentes[prof].atividades[chaveAtividade] = {
-                    codigo: aula.codigo,
-                    nome: aula.nome,
-                    tipo: aula.tipo,
-                    turmas: aula.snapshotEtiquetas,
-                    hAtividade: 0
-                };
-            }
-            docentes[prof].atividades[chaveAtividade].hAtividade += 2;
-        });
-    });
-
-    return Object.keys(docentes).sort().map(nome => {
-        const hSemanais = docentes[nome].totalSlots * 2;
-
-        // Transformar objeto em array e ORDENAR as disciplinas do professor
-        const listaAtividades = Object.values(docentes[nome].atividades).sort((a, b) => {
-            // 1º Ordena por Nome da Disciplina
-            if (a.nome !== b.nome) return a.nome.localeCompare(b.nome);
-            // 2º Ordena por Tipo (Teoria antes de Prática - T vem depois de P, então invertemos)
-            return b.tipo.localeCompare(a.tipo);
-        });
-
+createApp({
+    data() {
         return {
-            nome: nome,
-            hSemanais: hSemanais,
-            hTotalEncargo: hSemanais * 2.5,
-            atividades: listaAtividades
-        };
-    });
-}
-function imprimirRelatorioEncargos() {
-    const periodo = document.getElementById('periodoAtual').value;
-    const dados = processarDadosDocentes();
-    const win = window.open('', '', 'width=1100,height=850');
+            DB_KEY: 'UFMT_SISTEMA_V12',
+            disciplinas: [],
+            optativas: [],
+            grade: [],
+            periodoSelecionado: '2026/1',
+            filtroPPC: '20261',
+            filtroSemestre: 1,
+            showModal: false,
+            editandoAulaUid: null,
+            cellSendoAlocada: null,
+            formAula: { snapshotEtiquetas: '', prof: '', sala: '', tipo: 'Teórica' },
+            discSendoAlocada: null,
+            internalDragData: null,
+            optativaSelecionadaCod: '',
+            dias: ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"],
+            horarios: [
+                { id: "M1", label: "07:30 - 09:30" }, { id: "M2", label: "09:30 - 11:30" },
+                { id: "T1", label: "13:30 - 15:30" }, { id: "T2", label: "15:30 - 17:30" }
+            ],
+            REGRAS_OFERTA: {
+                "2026/1": { "20261": [1], "20251": [2, 4, 6, 8] },
+                "2026/2": { "20261": [2], "20251": [3, 5, 7] },
+                "2027/1": { "20261": [1, 3], "20251": [4, 6, 8] },
+                "2027/2": { "20261": [2, 4], "20251": [5, 7] },
+                "2028/1": { "20261": [1, 3, 5], "20251": [6, 8] },
+                "2028/2": { "20261": [2, 4, 6], "20251": [7] },
+                "2029/1": { "20261": [1, 3, 5, 7], "20251": [8] },
+                "2029/2": { "20261": [2, 4, 6, 8], "20251": [] },
+                "2030/1": { "20261": [1, 3, 5, 7], "20251": [] },
+            }
+        }
+    },
+    computed: {
+        periodos() { return Object.keys(this.REGRAS_OFERTA); },
+        optativasOrdenadas() { return [...this.optativas].sort((a,b) => a.nome.localeCompare(b.nome)); },
+        disciplinasFiltradas() {
+            return this.disciplinas.filter(d => {
+                const semD = d[`ppc_${this.filtroPPC}`] || d[`PPC_${this.filtroPPC}`];
+                return Number(semD) === Number(this.filtroSemestre);
+            });
+        },
+        conflitosDetectados() {
+            let conflitos = [];
+            if (!this.grade || this.grade.length === 0) return [];
 
-    let h = `<html><head><style>
-        body{font-family:sans-serif;padding:30px;color:#333}
-        table{width:100%;border-collapse:collapse;margin-top:10px}
-        th,td{border:1px solid #ccc;padding:10px;font-size:12px;text-align:left}
-        th{background:#003d79;color:white;text-transform:uppercase}
-        tr:nth-child(even){background:#f9f9f9}
-        .item-atv{margin-bottom:4px; padding:2px 0}
-        .tag-tipo{font-weight:bold; color:#003d79; background:#e2e8f0; padding:2px 4px; border-radius:3px; font-size:10px}
-        .tag-turma{color:#c53030; font-weight:bold}
+            this.dias.forEach(dia => {
+                this.horarios.forEach(h => {
+                    const aulas = this.getAulasNoSlot(dia, h.id);
+                    if (aulas.length > 1) {
+                        for (let i = 0; i < aulas.length; i++) {
+                            for (let j = i + 1; j < aulas.length; j++) {
+                                const a1 = aulas[i]; const a2 = aulas[j];
+
+                                // 1. Conflito de Mesma Disciplina no mesmo horário
+                                if (a1.codigo === a2.codigo) {
+                                    conflitos.push({ msg: `Mesma Disciplina (${a1.nome}) repetida no horário (${dia} ${h.label}).` });
+                                }
+                                // 2. Conflito de Mesmo PPC e Semestre
+                                else if (a1.ppc === a2.ppc && Number(a1.semestre) === Number(a2.semestre)) {
+                                    conflitos.push({ msg: `Mesmo Semestre (${a1.semestre}º) do PPC ${a1.ppc} em choque (${dia} ${h.label}).` });
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+            return conflitos;
+        }
+    },
+    async mounted() {
+        try {
+            const resOb = await fetch('./data/disciplinas_obrigatorias.json');
+            this.disciplinas = await resOb.json();
+            const resOpt = await fetch('./data/disciplinas_optativas.json');
+            this.optativas = await resOpt.json();
+            const saved = localStorage.getItem(this.DB_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                this.grade = Array.isArray(parsed) ? parsed : this.converterGrade(parsed);
+            }
+        } catch (e) { this.grade = []; }
+    },
+    methods: {
+        getAulasNoSlot(dia, hId) {
+            return this.grade.filter(a => a.dia === dia && a.horaId === hId && a.periodo === this.periodoSelecionado);
+        },
+        getColor(s) { return { 1: "#e3f2fd", 2: "#f1f8e9", 3: "#fff3e0", 4: "#f3e5f5", 5: "#efebe9", 6: "#e0f2f1", 7: "#fffde7", 8: "#ffebee" }[s] || "#f1f5f9"; },
+        limparTexto(val) { return val ? val.toString().replace(/[\[\]"']/g, '') : ''; },
+        getSemestresOfertados(ppc) { return this.REGRAS_OFERTA[this.periodoSelecionado]?.[ppc] || []; },
+        getDisciplinasPorPPCeSem(ppc, s) { return this.disciplinas.filter(d => (d[`ppc_${ppc}`] || d[`PPC_${ppc}`]) == s); },
+        estaAlocada(cod) { return this.grade.some(a => a.codigo === cod && a.periodo === this.periodoSelecionado); },
+
+        // --- INTERAÇÕES ---
+        toggleSelection(d) { this.discSendoAlocada = (this.discSendoAlocada?.codigo === d.codigo) ? null : d; },
+        selecionarParaTablet(d) { this.discSendoAlocada = d; },
+        selecionarOptativa() {
+            if (!this.optativaSelecionadaCod) return;
+            this.discSendoAlocada = this.optativas.find(o => o.codigo === this.optativaSelecionadaCod);
+        },
+        cellClicked(dia, hId) { if (this.discSendoAlocada) { this.cellSendoAlocada = `${dia}-${hId}`; this.abrirModal(); } },
+        onDragStartExternal(e, d) { this.discSendoAlocada = d; this.internalDragData = null; },
+        onDragStartInternal(e, a) { this.internalDragData = { aula: a }; this.discSendoAlocada = null; },
+        onDrop(e, dia, hId) {
+            if (this.internalDragData) {
+                const target = this.grade.find(x => x.uid === this.internalDragData.aula.uid);
+                if (target) { target.dia = dia; target.horaId = hId; this.persistir(); }
+                this.internalDragData = null;
+            } else if (this.discSendoAlocada) {
+                this.cellSendoAlocada = `${dia}-${hId}`;
+                this.abrirModal();
+            }
+        },
+
+        // --- ALOCAÇÃO ---
+        abrirModal() {
+            if (!this.editandoAulaUid) {
+                this.formAula = { snapshotEtiquetas: 'A', prof: 'A definir', sala: 'S/N', tipo: 'Teórica' };
+            }
+            this.showModal = true;
+        },
+        fecharModal() { this.showModal = false; this.editandoAulaUid = null; this.discSendoAlocada = null; },
+        confirmarAlocacao() {
+            if (!this.formAula.snapshotEtiquetas) return alert("Informe a turma!");
+            const [dia, horaId] = this.cellSendoAlocada.split('-');
+            const ppcAtivo = this.filtroPPC;
+            const semD = this.discSendoAlocada[`ppc_${ppcAtivo}`] || this.discSendoAlocada[`PPC_${ppcAtivo}`];
+
+            if (this.editandoAulaUid) this.grade = this.grade.filter(a => a.uid !== this.editandoAulaUid);
+
+            this.grade.push({
+                uid: this.editandoAulaUid || 'ID' + Date.now(),
+                codigo: this.discSendoAlocada.codigo, nome: this.discSendoAlocada.nome,
+                semestre: semD, periodo: this.periodoSelecionado, ppc: ppcAtivo,
+                dia, horaId, prof: this.formAula.prof, sala: this.formAula.sala,
+                tipo: this.formAula.tipo, snapshotEtiquetas: this.formAula.snapshotEtiquetas
+            });
+            this.persistir(); this.fecharModal();
+        },
+        abrirEdicao(a) {
+            this.discSendoAlocada = { codigo: a.codigo, nome: a.nome, [`ppc_${a.ppc}`]: a.semestre };
+            this.cellSendoAlocada = `${a.dia}-${a.horaId}`;
+            this.editandoAulaUid = a.uid;
+            this.formAula = { snapshotEtiquetas: a.snapshotEtiquetas, prof: a.prof, sala: a.sala, tipo: a.tipo };
+            this.showModal = true;
+        },
+        removerAula(uid) {
+            if (confirm("Remover aula?")) {
+                this.grade = this.grade.filter(a => a.uid !== uid);
+                this.persistir();
+            }
+        },
+
+        // --- UTILITÁRIOS ---
+        persistir() { localStorage.setItem(this.DB_KEY, JSON.stringify(this.grade)); },
+        converterGrade(dado) {
+            let novoArray = [];
+            Object.keys(dado).forEach(key => {
+                const [dia, horaId] = key.split('-');
+                if(Array.isArray(dado[key])) dado[key].forEach(aula => { novoArray.push({ ...aula, dia, horaId }); });
+            });
+            return novoArray;
+        },
+        triggerInputGrade() { this.$refs.fileGrade.click(); },
+        lerArquivoGrade(e) {
+            const r = new FileReader();
+            r.onload = (ev) => {
+                const data = JSON.parse(ev.target.result);
+                this.grade = Array.isArray(data) ? data : this.converterGrade(data);
+                this.persistir();
+            };
+            r.readAsText(e.target.files[0]);
+        },
+        exportarJSON() {
+            const b = new Blob([JSON.stringify(this.grade, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `grade.json`; a.click();
+        },
+        exportarExcel() {
+            const data = [["Dia", "Horário", "Código", "Disciplina", "Turma", "Professor", "Sala"]];
+            this.grade.filter(a => a.periodo === this.periodoSelecionado).forEach(a => {
+                data.push([a.dia, a.horaId, a.codigo, a.nome, this.limparTexto(a.snapshotEtiquetas), a.prof, a.sala]);
+            });
+            XLSX.writeFile({ SheetNames: ["Grade"], Sheets: { "Grade": XLSX.utils.aoa_to_sheet(data) } }, `Grade_${this.periodoSelecionado.replace('/','_')}.xlsx`);
+        },
+        exportarEncargosExcel() {
+            const d = this.processarDocentes();
+            const rows = [["Professor", "H/S Total", "Encargo Total (x2.5)", "Disciplina", "Turma"]];
+            d.forEach(doc => {
+                doc.atividades.forEach((atv, i) => {
+                    rows.push([i === 0 ? doc.nome : "", i === 0 ? doc.hSemanais : "", i === 0 ? doc.hTotalEncargo : "", atv.nome, atv.turmas]);
+                });
+            });
+            XLSX.writeFile({ SheetNames: ["Encargos"], Sheets: { "Encargos": XLSX.utils.aoa_to_sheet(rows) } }, `Encargos_${this.periodoSelecionado.replace('/','_')}.xlsx`);
+        },
+        imprimirRelatorioCompleto() {
+            const periodo = this.periodoSelecionado;
+            const rel = {};
+
+            // 1. Filtrar aulas do período ativo
+            const aulasAtivas = this.grade.filter(a => a.periodo === periodo);
+
+            // 2. Agrupar por PPC -> Semestre -> Chave de Atividade
+            aulasAtivas.forEach(a => {
+                if (!rel[a.ppc]) rel[a.ppc] = {};
+                if (!rel[a.ppc][a.semestre]) rel[a.ppc][a.semestre] = {};
+
+                const hLabel = this.horarios.find(h => h.id === a.horaId)?.label || "";
+                const turmaLimpa = this.limparTexto(a.snapshotEtiquetas);
+
+                // Chave: Código + Tipo + Turma + Professor (Para agrupar horários da mesma oferta)
+                const chaveAgrupamento = `${a.codigo}-${a.tipo}-${turmaLimpa}-${a.prof}`;
+
+                if (!rel[a.ppc][a.semestre][chaveAgrupamento]) {
+                    rel[a.ppc][a.semestre][chaveAgrupamento] = {
+                        codigo: a.codigo,
+                        nome: a.nome,
+                        tipo: a.tipo,
+                        turma: turmaLimpa,
+                        professor: a.prof || "A definir",
+                        horarios: []
+                    };
+                }
+
+                rel[a.ppc][a.semestre][chaveAgrupamento].horarios.push({
+                    dia: a.dia,
+                    label: hLabel,
+                    sala: a.sala || "S/N"
+                });
+            });
+
+            const win = window.open('', '', 'width=1150,height=850');
+            let h = `<html><head><style>
+        body { font-family: sans-serif; padding: 30px; color: #333; line-height: 1.4; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+        th, td { border: 1px solid #ccc; padding: 10px; font-size: 11px; text-align: left; vertical-align: top; }
+        th { background: #003d79; color: white; text-transform: uppercase; }
+        h1 { color: #003d79; border-bottom: 2px solid #003d79; }
+        h2 { background: #f4f4f4; padding: 10px; border-left: 8px solid #003d79; margin-top: 40px; font-size: 18px; }
+        h3 { color: #003d79; font-size: 14px; margin-top: 20px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        .tag-turma { color: #d32f2f; font-weight: bold; }
+        .tipo-t { color: #003d79; font-weight: bold; } /* Estilo Teórica */
+        .tipo-p { color: #059669; font-weight: bold; } /* Estilo Prática */
+        .horario-item { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid #eee; }
+        .horario-item:last-child { border-bottom: none; }
     </style></head><body>`;
 
-    h += `<h1>Relatório de Encargos Docentes - ${periodo}</h1>`;
-    h += `<table><tr><th width="25%">Professor</th><th width="10%">H/S</th><th width="15%">Encargo (x2.5)</th><th>Disciplinas e Turmas</th></tr>`;
+            h += `<h1>Relatório de Oferta Acadêmica - Período ${periodo}</h1>`;
 
-    dados.forEach(d => {
-        const listaAtv = d.atividades.map(at => `
-            <div class="item-atv">
-                ${at.nome} <span class="tag-turma">${at.turmas}</span> 
-                <span class="tag-tipo">${at.tipo}</span> 
-                <small style="color:#666">(${at.codigo})</small>
-            </div>
-        `).join('');
+            Object.keys(rel).sort().forEach(ppc => {
+                h += `<h2>PPC: ${ppc}</h2>`;
 
-        h += `<tr>
-            <td><strong>${d.nome}</strong></td>
-            <td>${d.hSemanais}h</td>
-            <td>${d.hTotalEncargo}h</td>
-            <td>${listaAtv}</td>
-        </tr>`;
-    });
-
-    h += `</table><script>window.print();</script></body></html>`;
-    win.document.write(h); win.document.close();
-}
-
-function popularDropdownOptativas() {
-    const sel = document.getElementById('selectOptativas');
-    sel.innerHTML = '<option value="">-- Escolha --</option>';
-    optativas.sort((a,b) => a.nome.localeCompare(b.nome)).forEach(o => sel.innerHTML += `<option value="${o.codigo}">${o.nome}</option>`);
-}
-
-function selecionarOptativa(cod) { if(!cod) return; discSendoAlocada = optativas.find(o => o.codigo === cod); }
-
-function exportarJSON() {
-    const blob = new Blob([JSON.stringify(grade, null, 2)], {type : 'application/json'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'grade.json'; a.click();
-}
-
-function exportarExcel() {
-    const periodo = document.getElementById('periodoAtual').value;
-    const dados = [["Dia", "Horário", "Código", "Disciplina", "Tipo", "Professor", "Sala", "Turma"]];
-    Object.keys(grade).forEach(cid => {
-        const [dia, hora] = cid.split('-');
-        grade[cid].filter(a => a.periodo === periodo).forEach(a => { dados.push([dia, hora, a.codigo, a.nome, a.tipo, a.prof, a.sala, a.snapshotEtiquetas]); });
-    });
-    const ws = XLSX.utils.aoa_to_sheet(dados);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Grade");
-    XLSX.writeFile(wb, "Grade_UFMT.xlsx");
-}
-
-function exportarEncargosExcel() {
-    const periodo = document.getElementById('periodoAtual').value;
-    const dados = processarDadosDocentes();
-    const rows = [["Professor", "H/S Total", "Encargo Total (x2.5)", "Código", "Disciplina", "Tipo", "Turmas"]];
-    dados.forEach(d => {
-        d.atividades.forEach((at, index) => { rows.push([index === 0 ? d.nome : "", index === 0 ? d.hSemanais : "", index === 0 ? d.hTotalEncargo : "", at.codigo, at.nome, at.tipo, at.turmas]); });
-    });
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Encargos");
-    XLSX.writeFile(wb, "Encargos_Docentes.xlsx");
-}
-
-function importarJSON(input) {
-    const reader = new FileReader();
-    reader.onload = (e) => { grade = JSON.parse(e.target.result); mudarFiltros(); };
-    reader.readAsText(input.files[0]);
-}
-function imprimirRelatorioCompleto() {
-    const periodo = document.getElementById('periodoAtual').value;
-    const rel = {};
-
-    Object.keys(grade).forEach(cid => {
-        const [dia, horaId] = cid.split('-');
-        const hLabel = horarios.find(h => h.id === horaId).label;
-        grade[cid].filter(a => a.periodo === periodo).forEach(a => {
-            if(!rel[a.ppc]) rel[a.ppc] = {};
-            if(!rel[a.ppc][a.semestre]) rel[a.ppc][a.semestre] = [];
-            rel[a.ppc][a.semestre].push({...a, dia, hLabel});
-        });
-    });
-
-    const win = window.open('', '', 'width=1100,height=850');
-    let h = `<html><head><style>
-        body{font-family:sans-serif;padding:20px}
-        table{width:100%;border-collapse:collapse;margin-bottom:30px}
-        th,td{border:1px solid #ccc;padding:6px;font-size:11px}
-        th{background:#003d79;color:white}
-        h2{background:#eee;padding:10px;border-left:5px solid #003d79}
-    </style></head><body><h1>Relatório Geral de Turmas - ${periodo}</h1>`;
-
-    Object.keys(rel).sort().forEach(ppc => {
-        h += `<h2>PPC: ${ppc}</h2>`;
-        Object.keys(rel[ppc]).sort((a,b) => a-b).forEach(sem => {
-            h += `<h3>${sem}º Semestre</h3>
+                Object.keys(rel[ppc]).sort((a, b) => a - b).forEach(sem => {
+                    h += `<h3>${sem}º Semestre Curricular</h3>
             <table>
-                <tr><th>Disciplina</th><th>Tipo</th><th>Turma</th><th>Professor</th><th>Dia</th><th>Horário</th><th>Sala</th></tr>`;
+                <thead>
+                    <tr>
+                        <th width="25%">Disciplina</th>
+                        <th width="10%">Tipo</th>
+                        <th width="15%">Turma(s)</th>
+                        <th width="20%">Professor</th>
+                        <th width="30%">Horários e Salas</th>
+                    </tr>
+                </thead>
+                <tbody>`;
 
-            // ORDENAÇÃO: Nome da Disciplina -> Tipo -> Dia
-            rel[ppc][sem].sort((a, b) => {
-                if (a.nome !== b.nome) return a.nome.localeCompare(b.nome);
-                if (a.tipo !== b.tipo) return b.tipo.localeCompare(a.tipo); // Teoria antes
-                return a.dia.localeCompare(b.dia);
-            });
+                    // 3. ORDENAÇÃO ESPECIAL: Nome -> Teórica antes de Prática -> Turma
+                    const listaOrdenada = Object.values(rel[ppc][sem]).sort((a, b) => {
+                        // Primeiro por Nome da Disciplina
+                        if (a.nome !== b.nome) return a.nome.localeCompare(b.nome);
 
-            rel[ppc][sem].forEach(a => {
-                h += `<tr>
-                    <td><strong>${a.nome}</strong><br><small>${a.codigo}</small></td>
-                    <td>${a.tipo}</td>
-                    <td style="color:red; font-weight:bold">${a.snapshotEtiquetas}</td>
-                    <td>${a.prof || "A definir"}</td>
-                    <td>${a.dia}</td>
-                    <td>${a.hLabel}</td>
-                    <td>${a.sala || "-"}</td>
+                        // Segundo por Tipo (Teórica vem antes de Prática)
+                        // Usamos o peso: Teórica = 1, Prática = 2
+                        const pesoA = a.tipo === "Teórica" ? 1 : 2;
+                        const pesoB = b.tipo === "Teórica" ? 1 : 2;
+                        if (pesoA !== pesoB) return pesoA - pesoB;
+
+                        // Terceiro por Turma
+                        return a.turma.localeCompare(b.turma);
+                    });
+
+                    listaOrdenada.forEach(item => {
+                        const diasOrdem = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
+                        item.horarios.sort((a, b) => diasOrdem.indexOf(a.dia) - diasOrdem.indexOf(b.dia));
+
+                        const htmlHorarios = item.horarios.map(hor => `
+                    <div class="horario-item">
+                        <b>${hor.dia}</b>: ${hor.label} | <small>Sala: ${hor.sala}</small>
+                    </div>
+                `).join('');
+
+                        const classeTipo = item.tipo === "Teórica" ? "tipo-t" : "tipo-p";
+
+                        h += `<tr>
+                    <td><strong>${item.nome}</strong><br><small>${item.codigo}</small></td>
+                    <td class="${classeTipo}">${item.tipo}</td>
+                    <td class="tag-turma">${item.turma}</td>
+                    <td><b>${item.professor}</b></td>
+                    <td>${htmlHorarios}</td>
                 </tr>`;
+                    });
+                    h += `</tbody></table>`;
+                });
             });
-            h += `</table>`;
-        });
-    });
 
-    h += `<script>window.print();</script></body></html>`;
-    win.document.write(h); win.document.close();
-}
+            h += `<script>window.onload = function() { window.print(); };<\/script></body></html>`;
+            win.document.write(h);
+            win.document.close();
+        },
+        gerarGradeHTML() {
+            const periodo = this.periodoSelecionado;
+            const win = window.open('', '', 'width=1200,height=900');
 
-function resetAbsoluto() { if(confirm("Limpar tudo?")) { localStorage.clear(); location.reload(); } }
+            // 1. Identificar quais semestres possuem aulas (únicos e ordenados)
+            const semestresAtivos = [...new Set(this.grade
+                .filter(a => a.periodo === periodo)
+                .map(a => Number(a.semestre))
+            )].sort((a, b) => a - b);
 
-carregarDados();
+            if (semestresAtivos.length === 0) {
+                return alert("Não há aulas cadastradas para este período.");
+            }
+
+            let html = `<html><head><title>Grades por Semestre - ${periodo}</title><style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+        
+        @page { 
+            size: A4 landscape; 
+            margin: 1cm; 
+        }
+
+        body { font-family: 'Inter', sans-serif; padding: 0; margin: 0; background: #fff; color: #333; }
+        
+        /* Container de cada semestre para quebra de página */
+        .page-container {
+            page-break-after: always;
+            padding-bottom: 20px;
+        }
+        
+        .page-container:last-child {
+            page-break-after: auto;
+        }
+
+        h1 { text-align: center; color: #003d79; margin: 10px 0; font-size: 22px; font-weight: 800; text-transform: uppercase; }
+        h2 { text-align: center; color: #475569; margin-bottom: 20px; font-size: 18px; font-weight: 600; }
+        
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; border: 2px solid #333; }
+        th { background: #003d79 !important; color: white !important; padding: 12px; font-size: 13px; border: 1px solid #333; text-transform: uppercase; }
+        td { border: 1px solid #333; vertical-align: top; padding: 8px; height: 180px; background-color: #fff; }
+        
+        .time-label { background: #f1f5f9 !important; text-align: center; font-weight: bold; font-size: 11px; width: 100px; vertical-align: middle; color: #003d79; border: 1px solid #333; }
+        
+        .card-export { 
+            border: 1px solid rgba(0,0,0,0.1); 
+            padding: 12px; 
+            margin-bottom: 10px; 
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+        }
+        
+        .card-export .subject-name { 
+            font-weight: 800; 
+            color: #003d79; 
+            font-size: 12px; 
+            display: block; 
+            margin-bottom: 5px; 
+            line-height: 1.3;
+        }
+        
+        .card-export .details { 
+            font-size: 11px; 
+            color: #334155; 
+            line-height: 1.5;
+            border-top: 1px solid rgba(0,0,0,0.1);
+            padding-top: 5px;
+            margin-top: 5px;
+        }
+        
+        .turma-label { 
+            display: inline-block; 
+            border: 1.5px solid #003d79;
+            color: #003d79; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            font-size: 10px; 
+            margin-top: 10px;
+            font-weight: 800;
+            background: rgba(255,255,255,0.8);
+        }
+
+        .ppc-tag {
+            font-size: 9px;
+            font-weight: 700;
+            color: #64748b;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .no-print { 
+            text-align: right; 
+            padding: 15px; 
+            background: #f8fafc; 
+            border-bottom: 1px solid #e2e8f0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .btn-print { padding: 12px 25px; cursor: pointer; background: #003d79; color: white; border: none; border-radius: 6px; font-weight: bold; }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { padding: 0; }
+            .page-container { padding-bottom: 0; }
+        }
+    </style></head><body>`;
+
+            html += `<div class="no-print"><button class="btn-print" onclick="window.print()">🖨️ Imprimir Todas as Folhas (A4 Paisagem)</button></div>`;
+
+            // 2. Gerar uma folha/tabela para cada semestre
+            semestresAtivos.forEach(sem => {
+                html += `<div class="page-container">`;
+                html += `<h1>Grade Horária - Período ${periodo}</h1>`;
+                html += `<h2>Curso de Engenharia de Computação - ${sem}º Semestre Curricular</h2>`;
+
+                html += `<table><thead><tr><th>Horário</th>`;
+                this.dias.forEach(dia => { html += `<th>${dia}</th>`; });
+                html += `</tr></thead><tbody>`;
+
+                this.horarios.forEach(h => {
+                    html += `<tr><td class="time-label">${h.label}</td>`;
+
+                    this.dias.forEach(dia => {
+                        html += `<td>`;
+                        // Filtrar aulas: Mesmo período, mesmo dia, mesmo horário E MESMO SEMESTRE
+                        const aulas = this.grade.filter(a =>
+                            a.periodo === periodo &&
+                            a.dia === dia &&
+                            a.horaId === h.id &&
+                            Number(a.semestre) === sem
+                        );
+
+                        aulas.forEach(aula => {
+                            const corSemestre = this.getColor(aula.semestre);
+                            const turmaLimpa = this.limparTexto(aula.snapshotEtiquetas);
+                            const ppcFormatado = aula.ppc ? `PPC ${aula.ppc.substring(0,4)}/${aula.ppc.substring(4)}` : "";
+
+                            html += `
+                        <div class="card-export" style="background-color: ${corSemestre} !important;">
+                            <span class="ppc-tag">${ppcFormatado}</span>
+                            <span class="subject-name">${aula.nome}</span>
+                            <div class="details">
+                                <strong>Código:</strong> ${aula.codigo}<br>
+                                <strong>Professor:</strong> ${aula.prof || 'A definir'}<br>
+                                <strong>Sala:</strong> ${aula.sala || 'S/N'} (${aula.tipo})
+                            </div>
+                            <span class="turma-label">${turmaLimpa}</span>
+                        </div>
+                    `;
+                        });
+                        html += `</td>`;
+                    });
+                    html += `</tr>`;
+                });
+
+                html += `</tbody></table></div>`;
+            });
+
+            html += `</body></html>`;
+
+            win.document.write(html);
+            win.document.close();
+        },
+        imprimirRelatorioEncargos() {
+            const dados = this.processarDocentes();
+            const win = window.open('', '', 'width=1100,height=850');
+            let h = `<html><head><style>body{font-family:sans-serif;padding:30px;color:#333}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #ccc;padding:10px;font-size:12px;text-align:left}th{background:#003d79;color:white}</style></head><body><h1>Relatório de Encargos Docentes - ${this.periodoSelecionado}</h1><table border="1"><thead><tr><th>Professor</th><th>H/S</th><th>Encargo (x2.5)</th><th>Disciplinas</th></tr></thead><tbody>`;
+            dados.forEach(d => {
+                h += `<tr><td><strong>${d.nome}</strong></td><td>${d.hSemanais}h</td><td>${d.hTotalEncargo}h</td><td>${d.atividades.map(at => at.nome + ' (' + at.turmas + ')').join('<br>')}</td></tr>`;
+            });
+            h += `</table><script>window.print();<\/script></body></html>`;
+            win.document.write(h); win.document.close();
+        },
+        processarDocentes() {
+            const d = {};
+            this.grade.filter(a => a.periodo === this.periodoSelecionado).forEach(aula => {
+                const p = aula.prof || "A definir";
+                if (!d[p]) d[p] = { totalSlots: 0, atividades: {} };
+                d[p].totalSlots += 1;
+                const chave = `${aula.codigo}-${aula.tipo}-${aula.snapshotEtiquetas}`;
+                if (!d[p].atividades[chave]) d[p].atividades[chave] = { nome: aula.nome, turmas: this.limparTexto(aula.snapshotEtiquetas) };
+            });
+            return Object.keys(d).sort().map(nome => ({
+                nome, hSemanais: d[nome].totalSlots * 2, hTotalEncargo: (d[nome].totalSlots * 5),
+                atividades: Object.values(d[nome].atividades)
+            }));
+        },
+        resetar() { if(confirm("Limpar tudo?")) { this.grade = []; this.persistir(); location.reload(); } }
+    }
+}).mount('#app');

@@ -1,96 +1,127 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UFMT | Gestor de Oferta Acadêmica</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+<div id="app" v-cloak @keyup.esc="selectedSubject = null">
+    <header class="main-header">
+        <div class="header-container">
+            <div class="brand"><h1>UFMT</h1><span>Gestor de Oferta</span></div>
+            <div class="controles">
+                <div class="select-group"><label>Período:</label><select v-model="periodoSelecionado"><option v-for="p in periodos" :key="p" :value="p">{{p}}</option></select></div>
+                <div class="select-group"><label>PPC:</label><select v-model="filtroPPC"><option value="20251">PPC 2025/1</option><option value="20261">PPC 2026/1</option></select></div>
+                <div class="select-group"><label>Semestre:</label><select v-model="filtroSemestre"><option v-for="n in 8" :value="n">{{n}}º Semestre</option></select></div>
 
-<header class="main-header">
-    <div class="header-container">
-        <div class="brand"><h1>UFMT</h1><span>Gestor de Oferta</span></div>
-        <div class="controles">
-            <div class="select-group">
-                <label>Período Letivo:</label>
-                <select id="periodoAtual" onchange="salvarEAtualizar()"></select>
+                <div class="btns-header">
+                    <button @click="triggerInputGrade" class="btn-outline">📂 Importar JSON</button>
+                    <input type="file" ref="fileGrade" style="display:none" @change="lerArquivoGrade">
+                    <button @click="exportarJSON" class="btn-outline">💾 Salvar JSON</button>
+                    <button @click="exportarExcel" class="btn-outline">📊 Excel Grade</button>
+                    <button @click="exportarEncargosExcel" class="btn-outline">📊 Excel Encargos</button>
+                    <button @click="imprimirRelatorioCompleto" class="btn-outline">📋 Relatório Disciplinas</button>
+                    <button @click="imprimirRelatorioEncargos" class="btn-outline">👨‍🏫 Relatório Encargos</button>
+                    <button @click="gerarGradeHTML" class="btn-outline">🖼️ Exportar Grade</button>
+                    <button @click="resetar" class="btn-danger-outline">Resetar</button>
+                </div>
             </div>
-            <div class="select-group">
-                <label>PPC:</label>
-                <select id="filtroPPC" onchange="mudarFiltros()">
-                    <option value="20251">PPC 2025/1</option>
-                    <option value="20261" selected>PPC 2026/1</option>
+        </div>
+    </header>
+
+    <main class="app-layout">
+        <aside class="sidebar">
+            <h4>Disciplinas do Semestre</h4>
+            <div id="listaDisciplinas">
+                <div v-for="d in disciplinasFiltradas" :key="d.codigo"
+                     class="card-disc-item"
+                     :class="{ 'selected': discSendoAlocada?.codigo === d.codigo }"
+                     draggable="true"
+                     @dragstart="onDragStartExternal($event, d)"
+                     @click="toggleSelection(d)">
+                    <strong>{{ d.codigo }}</strong><br>{{ d.nome }}
+                </div>
+            </div>
+            <div class="config-box optativas-box" style="margin-top: 20px;">
+                <label>✨ Optativas:</label>
+                <select v-model="optativaSelecionadaCod" @change="selecionarOptativa">
+                    <option value="">-- Escolha --</option>
+                    <option v-for="o in optativasOrdenadas" :key="o.codigo" :value="o.codigo">{{o.nome}}</option>
                 </select>
             </div>
-            <div class="select-group">
-                <label>Semestre Ofertado:</label>
-                <select id="filtroSemestre" onchange="mudarFiltros()"></select>
+        </aside>
+
+        <section class="grid-content">
+            <!-- Alertas de Choque Curricular -->
+            <div class="conflicts-panel" v-if="conflitosDetectados.length > 0">
+                <div v-for="(c, i) in conflitosDetectados" :key="i" class="conflict-item">⚠️ {{ c.msg }}</div>
             </div>
-            <div class="btns-header">
-                <button onclick="document.getElementById('importFile').click()" class="btn-outline">📂 Importar</button>
-                <input type="file" id="importFile" style="display:none" onchange="importarJSON(this)">
-                <button onclick="exportarJSON()" class="btn-outline">💾 JSON</button>
-                <button onclick="exportarExcel()" class="btn-outline">📊 Grade Excel</button>
-                <button onclick="exportarEncargosExcel()" class="btn-outline">📊 Encargos Excel</button>
-                <button onclick="imprimirRelatorioCompleto()" class="btn-outline">📋 Relatório Disciplinas</button>
-                <button onclick="imprimirRelatorioEncargos()" class="btn-outline">👨‍🏫 Relatório Encargos</button>
-                <button onclick="window.print()" class="btn-outline">📄 PDF Grade</button>
-                <button onclick="resetAbsoluto()" class="btn-danger-outline">Resetar</button>
+
+            <table class="horario-table">
+                <thead><tr><th style="width: 100px;">Horário</th><th v-for="dia in dias" :key="dia">{{dia}}</th></tr></thead>
+                <tbody>
+                <tr v-for="h in horarios" :key="h.id">
+                    <td class="time-label-cell"><b>{{ h.label }}</b></td>
+                    <td v-for="dia in dias" :key="dia"
+                        :class="{'highlight-cell': discSendoAlocada}"
+                        @click="cellClicked(dia, h.id)"
+                        @dragover.prevent @drop="onDrop($event, dia, h.id)">
+                        <div class="drop-zone">
+                            <div v-for="aula in getAulasNoSlot(dia, h.id)" :key="aula.uid"
+                                 class="aula-box" draggable="true"
+                                 @dragstart="onDragStartInternal($event, aula)"
+                                 :style="{ backgroundColor: getColor(aula.semestre), borderLeftColor: 'var(--primary)' }"
+                                 @click.stop="abrirEdicao(aula)">
+                                <button class="btn-del" @click.stop="removerAula(aula.uid)">&times;</button>
+                                <span class="turma-tag" v-if="aula.snapshotEtiquetas">{{ limparTexto(aula.snapshotEtiquetas) }}</span>
+                                <div style="font-weight:bold; color:#003d79; margin-top: 5px;">{{ aula.codigo }}</div>
+                                <div style="margin-bottom: 5px; font-size: 11px;">{{ aula.nome }}</div>
+                                <div class="aula-info">P: {{ aula.prof }}<br>S: {{ aula.sala }} ({{ aula.tipo[0] }})</div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="matriz-resumo">
+                <h3>Conferência de Oferta (PPC)</h3>
+                <div v-for="ppc in ['20251', '20261']" :key="ppc" class="ppc-row" :class="'p' + ppc">
+                    <div class="ppc-label-v">PPC {{ ppc }}</div>
+                    <div class="ppc-sems-container">
+                        <div v-for="s in getSemestresOfertados(ppc)" :key="s" class="matriz-sem-col" :style="{backgroundColor: getColor(s)}">
+                            <header>{{ s }}º Sem</header>
+                            <div v-for="d in getDisciplinasPorPPCeSem(ppc, s)" :key="d.codigo" class="matriz-item" :class="{ 'ok': estaAlocada(d.codigo) }">
+                                {{ estaAlocada(d.codigo) ? '✅' : '❌' }} {{ d.nome }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</header>
+        </section>
+    </main>
 
-
-
-<main class="app-layout">
-    <aside class="sidebar">
-        <h4>Disciplinas do Semestre</h4>
-        <div id="listaDisciplinas"></div>
-        <div class="config-box optativas-box">
-            <label>✨ Optativas:</label>
-            <select id="selectOptativas" onchange="selecionarOptativa(this.value)"></select>
-        </div>
-    </aside>
-
-    <section class="grid-content">
-        <table class="horario-table">
-            <thead>
-            <tr><th>Horário</th><th>Segunda</th><th>Terça</th><th>Quarta</th><th>Quinta</th><th>Sexta</th></tr>
-            </thead>
-            <tbody id="corpoTabela"></tbody>
-        </table>
-
-        <div class="matriz-resumo">
-            <h3>Conferência de Oferta (PPC)</h3>
-            <div id="matriz-20251" class="ppc-container-horizontal antigo-border"></div>
-            <div id="matriz-20261" class="ppc-container-horizontal novo-border"></div>
-        </div>
-    </section>
-</main>
-
-<div id="modalAula" class="modal-overlay" style="display:none;">
-    <div class="modal-content">
-        <h4 id="modalTitle">Configurar Aula</h4>
-        <div class="config-grid">
-            <div class="field"><label>Turmas:</label><input type="text" id="editTurmas"></div>
-            <div class="field"><label>Professor:</label><input type="text" id="editProf"></div>
-            <div class="field"><label>Sala/Local:</label><input type="text" id="editSala"></div>
-            <div class="field">
-                <label>Tipo:</label>
-                <select id="editTipo"><option value="Teórica">Teórica</option><option value="Prática">Prática</option></select>
+    <div class="modal-overlay" v-if="showModal" @click.self="fecharModal">
+        <div class="modal-content">
+            <h4>Configurar Aula</h4>
+            <div class="config-grid">
+                <div class="field"><label>Turmas:</label><input v-model="formAula.snapshotEtiquetas"></div>
+                <div class="field"><label>Professor:</label><input v-model="formAula.prof"></div>
+                <div class="field"><label>Sala:</label><input v-model="formAula.sala"></div>
+                <div class="field"><label>Tipo:</label><select v-model="formAula.tipo"><option value="Teórica">Teórica</option><option value="Prática">Prática</option></select></div>
             </div>
-        </div>
-        <div class="modal-btns">
-            <button onclick="fecharModal()" class="btn-outline">Cancelar</button>
-            <button onclick="confirmarAlocacao()" class="btn-primary-full">Confirmar</button>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button @click="fecharModal" class="btn-outline" style="flex:1">Cancelar</button>
+                <button @click="confirmarAlocacao" class="btn-primary-full" style="flex:2">Confirmar</button>
+            </div>
         </div>
     </div>
 </div>
-
 <script src="js/script.js"></script>
 </body>
 </html>
