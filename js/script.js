@@ -314,164 +314,182 @@ createApp({
             const periodo = this.periodoSelecionado;
             const win = window.open('', '', 'width=1200,height=900');
 
-            // 1. Identificar quais semestres possuem aulas (únicos e ordenados)
             const semestresAtivos = [...new Set(this.grade
                 .filter(a => a.periodo === periodo)
                 .map(a => Number(a.semestre))
             )].sort((a, b) => a - b);
 
-            if (semestresAtivos.length === 0) {
-                return alert("Não há aulas cadastradas para este período.");
-            }
+            if (semestresAtivos.length === 0) return alert("Não há aulas cadastradas.");
 
-            let html = `<html><head><title>Grades por Semestre - ${periodo}</title><style>
+            let html = `<html><head><title>Grades - ${periodo}</title><style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         
+        /* Configuração de Página A4 Paisagem Rigorosa */
         @page { 
             size: A4 landscape; 
-            margin: 1cm; 
+            margin: 10mm; /* Margem padrão de impressora */
         }
 
-        body { font-family: 'Inter', sans-serif; padding: 0; margin: 0; background: #fff; color: #333; }
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            background: #fff; 
+            color: #333; 
+        }
         
-        /* Container de cada semestre para quebra de página */
+        /* Container que simula uma folha A4 física */
         .page-container {
+            width: 277mm;   /* Largura total do A4 menos margens */
+            height: 180mm;  /* Altura total do A4 menos margens e folga */
             page-break-after: always;
-            padding-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Impede que qualquer coisa vaze e crie folha em branco */
+            margin: 0 auto;
         }
         
-        .page-container:last-child {
-            page-break-after: auto;
+        .page-container:last-child { page-break-after: auto; }
+
+        .header-print { text-align: center; margin-bottom: 5px; }
+        .header-print h1 { color: #003d79; margin: 0; font-size: 18px; font-weight: 800; }
+        .header-print h2 { color: #475569; margin: 2px 0 10px 0; font-size: 14px; font-weight: 600; }
+        
+        /* Tabela ocupando o restante do espaço da folha */
+        table { 
+            width: 100%; 
+            height: 100%; /* Força a tabela a preencher a folha */
+            border-collapse: collapse; 
+            table-layout: fixed; 
+            border: 1.5px solid #000; 
         }
 
-        h1 { text-align: center; color: #003d79; margin: 10px 0; font-size: 22px; font-weight: 800; text-transform: uppercase; }
-        h2 { text-align: center; color: #475569; margin-bottom: 20px; font-size: 18px; font-weight: 600; }
+        th { 
+            background: #003d79 !important; 
+            color: white !important; 
+            padding: 5px; 
+            font-size: 12px; 
+            border: 1px solid #000; 
+            text-transform: uppercase; 
+        }
+
+        td { 
+            border: 1px solid #000; 
+            vertical-align: top; 
+            padding: 4px; 
+            background-color: #fff;
+            height: auto; /* Deixa o navegador distribuir as linhas */
+        }
         
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; border: 2px solid #333; }
-        th { background: #003d79 !important; color: white !important; padding: 12px; font-size: 13px; border: 1px solid #333; text-transform: uppercase; }
-        td { border: 1px solid #333; vertical-align: top; padding: 8px; height: 180px; background-color: #fff; }
+        .time-label { 
+            background: #f1f5f9 !important; 
+            text-align: center; 
+            font-weight: bold; 
+            font-size: 10px; 
+            width: 80px; 
+            vertical-align: middle; 
+            color: #003d79; 
+        }
         
-        .time-label { background: #f1f5f9 !important; text-align: center; font-weight: bold; font-size: 11px; width: 100px; vertical-align: middle; color: #003d79; border: 1px solid #333; }
-        
+        /* Card Interno Compacto */
         .card-export { 
-            border: 1px solid rgba(0,0,0,0.1); 
-            padding: 12px; 
-            margin-bottom: 10px; 
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
+            border: 1px solid rgba(0,0,0,0.2); 
+            padding: 6px; 
+            margin-bottom: 4px; 
+            border-radius: 4px;
+            font-size: 10px;
         }
         
         .card-export .subject-name { 
             font-weight: 800; 
             color: #003d79; 
-            font-size: 12px; 
+            font-size: 10px; 
             display: block; 
-            margin-bottom: 5px; 
-            line-height: 1.3;
+            line-height: 1.2;
+            margin-bottom: 2px;
         }
         
         .card-export .details { 
-            font-size: 11px; 
-            color: #334155; 
-            line-height: 1.5;
-            border-top: 1px solid rgba(0,0,0,0.1);
-            padding-top: 5px;
-            margin-top: 5px;
+            font-size: 9px; 
+            color: #000; 
+            line-height: 1.3;
+            border-top: 0.5px solid rgba(0,0,0,0.1);
+            padding-top: 2px;
         }
         
         .turma-label { 
             display: inline-block; 
-            border: 1.5px solid #003d79;
+            border: 1px solid #003d79;
             color: #003d79; 
-            padding: 2px 8px; 
-            border-radius: 4px; 
-            font-size: 10px; 
-            margin-top: 10px;
+            padding: 0px 4px; 
+            border-radius: 2px; 
+            font-size: 8.5px; 
+            margin-top: 3px;
             font-weight: 800;
-            background: rgba(255,255,255,0.8);
         }
 
-        .ppc-tag {
-            font-size: 9px;
-            font-weight: 700;
-            color: #64748b;
-            margin-bottom: 4px;
-            display: block;
-        }
+        .ppc-tag { font-size: 8px; font-weight: 700; color: #64748b; margin-bottom: 2px; display: block; }
 
+        /* Botão Interativo */
         .no-print { 
-            text-align: right; 
-            padding: 15px; 
-            background: #f8fafc; 
-            border-bottom: 1px solid #e2e8f0;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            text-align: right; padding: 10px; background: #f1f5f9; border-bottom: 1px solid #ccc;
         }
-        .btn-print { padding: 12px 25px; cursor: pointer; background: #003d79; color: white; border: none; border-radius: 6px; font-weight: bold; }
+        .btn-print { padding: 10px 20px; cursor: pointer; background: #003d79; color: white; border: none; border-radius: 4px; font-weight: bold; }
 
         @media print {
             .no-print { display: none !important; }
-            body { padding: 0; }
-            .page-container { padding-bottom: 0; }
+            .page-container { margin: 0; border: none; }
         }
     </style></head><body>`;
 
-            html += `<div class="no-print"><button class="btn-print" onclick="window.print()">🖨️ Imprimir Todas as Folhas (A4 Paisagem)</button></div>`;
+            html += `<div class="no-print"><button class="btn-print" onclick="window.print()">🖨️ Gerar PDF / Imprimir (A4 Horizontal)</button></div>`;
 
-            // 2. Gerar uma folha/tabela para cada semestre
             semestresAtivos.forEach(sem => {
-                html += `<div class="page-container">`;
-                html += `<h1>Grade Horária - Período ${periodo}</h1>`;
-                html += `<h2>Curso de Engenharia de Computação - ${sem}º Semestre Curricular</h2>`;
-
-                html += `<table><thead><tr><th>Horário</th>`;
+                html += `<div class="page-container">
+                    <div class="header-print">
+                        <h1>Grade Horária Acadêmica - Período ${periodo}</h1>
+                        <h2>Curso de Engenharia de Computação - ${sem}º Semestre Curricular</h2>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 80px;">Horário</th>`;
                 this.dias.forEach(dia => { html += `<th>${dia}</th>`; });
-                html += `</tr></thead><tbody>`;
+                html += `           </tr>
+                        </thead>
+                        <tbody>`;
 
                 this.horarios.forEach(h => {
                     html += `<tr><td class="time-label">${h.label}</td>`;
-
                     this.dias.forEach(dia => {
                         html += `<td>`;
-                        // Filtrar aulas: Mesmo período, mesmo dia, mesmo horário E MESMO SEMESTRE
                         const aulas = this.grade.filter(a =>
-                            a.periodo === periodo &&
-                            a.dia === dia &&
-                            a.horaId === h.id &&
-                            Number(a.semestre) === sem
+                            a.periodo === periodo && a.dia === dia && a.horaId === h.id && Number(a.semestre) === sem
                         );
-
                         aulas.forEach(aula => {
-                            const corSemestre = this.getColor(aula.semestre);
-                            const turmaLimpa = this.limparTexto(aula.snapshotEtiquetas);
+                            const cor = this.getColor(aula.semestre);
                             const ppcFormatado = aula.ppc ? `PPC ${aula.ppc.substring(0,4)}/${aula.ppc.substring(4)}` : "";
-
                             html += `
-                        <div class="card-export" style="background-color: ${corSemestre} !important;">
+                        <div class="card-export" style="background-color: ${cor} !important;">
                             <span class="ppc-tag">${ppcFormatado}</span>
                             <span class="subject-name">${aula.nome}</span>
                             <div class="details">
-                                <strong>Código:</strong> ${aula.codigo}<br>
-                                <strong>Professor:</strong> ${aula.prof || 'A definir'}<br>
-                                <strong>Sala:</strong> ${aula.sala || 'S/N'} (${aula.tipo})
+                                <strong>Prof:</strong> ${aula.prof || 'A definir'}<br>
+                                <strong>Sala:</strong> ${aula.sala || 'S/N'} | <strong>Tipo:</strong> ${aula.tipo}
                             </div>
-                            <span class="turma-label">${turmaLimpa}</span>
-                        </div>
-                    `;
+                            <span class="turma-label">${this.limparTexto(aula.snapshotEtiquetas)}</span>
+                        </div>`;
                         });
                         html += `</td>`;
                     });
                     html += `</tr>`;
                 });
-
                 html += `</tbody></table></div>`;
             });
 
             html += `</body></html>`;
-
             win.document.write(html);
             win.document.close();
         },
