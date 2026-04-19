@@ -503,6 +503,73 @@ createApp({
             h += `</table><script>window.print();<\/script></body></html>`;
             win.document.write(h); win.document.close();
         },
+        gerarDemandaFCT() {
+            const codigosFCT = [
+                "114300004", "114300005", "114100007", // Cálculos
+                "114300009", "114300010", "114300062", "114300013", // Físicas
+                "114100009", // Fenômenos de Transporte
+                "114100014", "114100015", // Químicas
+                "114300006", // Álgebra Linear
+                "114300008"  // Probabilidade e Estatística
+            ];
+
+            const aulasFCT = this.grade.filter(a =>
+                a.periodo === this.periodoSelecionado &&
+                codigosFCT.includes(a.codigo)
+            );
+
+            if (aulasFCT.length === 0) return alert("Nenhuma disciplina da FCT (Cálculos, Físicas, etc) foi alocada para este período.");
+
+            const agrupado = {};
+            aulasFCT.forEach(a => {
+                const turma = this.limparTexto(a.snapshotEtiquetas);
+                const chave = `${a.codigo}-${a.tipo}-${turma}`;
+                if (!agrupado[chave]) {
+                    agrupado[chave] = {
+                        codigo: a.codigo, nome: a.nome, tipo: a.tipo, turma: turma, horarios: []
+                    };
+                }
+                const hLabel = this.horarios.find(h => h.id === a.horaId)?.label || "";
+                agrupado[chave].horarios.push(`${a.dia} (${hLabel})`);
+            });
+
+            const win = window.open('', '', 'width=900,height=700');
+            let h = `<html><head><title>Demanda FCT - ${this.periodoSelecionado}</title><style>
+                body { font-family: sans-serif; padding: 30px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #333; padding: 10px; font-size: 13px; text-align: left; }
+                th { background: #003d79; color: white; }
+                h2 { color: #003d79; border-bottom: 2px solid #003d79; padding-bottom: 10px; }
+                .btn-print { background: #003d79; color: white; padding: 10px 20px; border: none; cursor: pointer; font-weight: bold; margin-bottom: 20px; }
+                @media print { .btn-print { display: none; } }
+            </style></head><body>
+            <button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>
+            <h2>Demanda de Disciplinas Básicas - FCT (${this.periodoSelecionado})</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Disciplina</th>
+                        <th>Tipo</th>
+                        <th>Turma</th>
+                        <th>Horários Propostos</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            Object.values(agrupado).sort((a, b) => a.nome.localeCompare(b.nome)).forEach(item => {
+                h += `<tr>
+                    <td>${item.codigo}</td>
+                    <td><b>${item.nome}</b></td>
+                    <td>${item.tipo}</td>
+                    <td>${item.turma}</td>
+                    <td>${item.horarios.join('<br>')}</td>
+                </tr>`;
+            });
+
+            h += `</tbody></table></body></html>`;
+            win.document.write(h); win.document.close();
+        },
         processarDocentes() {
             const d = {};
             this.grade.filter(a => a.periodo === this.periodoSelecionado).forEach(aula => {
