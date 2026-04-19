@@ -248,7 +248,7 @@ createApp({
         .horario-item:last-child { border-bottom: none; }
     </style></head><body>`;
 
-            h += `<h1>Relatório de Oferta Acadêmica - Período ${periodo}</h1>`;
+            h += `<h1>Engenharia de Computação - Período ${periodo}</h1>`;
 
             Object.keys(rel).sort().forEach(ppc => {
                 h += `<h2>PPC: ${ppc}</h2>`;
